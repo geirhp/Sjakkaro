@@ -1,0 +1,2749 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SJAKKARO – Avansert partianalyse (patched)</title>
+  <!-- Chess libs -->
+  <link rel="stylesheet" href="https://unpkg.com/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css" />
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@chrisoakman/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+  <style>
+    :root {
+      --bg:#0b1220; --card:#111a2b; --muted:#aab4cf; --text:#eaf0ff;
+      --primary:#4f7cff; --primary-600:#385ff0; --primary-300:#a6bbff;
+      --accent:#ffd166; --danger:#ef476f; --ok:#06d6a0;
+      --w3:#ff6b35; --w2:#ff8c61; --w1:#ffbe86; --n0:#5e6b8a; --b1:#6ad3e0; --b2:#3bbfd1; --b3:#00a6c8;
+      --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+      --board-size:min(88vw,480px); --panel-w:420px; --gap:14px;
+    }
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(160deg,#0b1220,#0c1d33 40%,#0b1220 100%);color:var(--text)}
+    .app{max-width:1024px;margin:0 auto;padding:16px}
+    header.app-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:0}
+    .brand{font-weight:800;letter-spacing:.3px}.badge{padding:2px 8px;border-radius:999px;background:#1a2640;color:var(--muted);font-size:12px}
+    .tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px}
+    .tab{white-space:nowrap;padding:8px 10px;border-radius:10px;background:#0e1730;color:var(--muted);border:1px solid #152243;cursor:pointer;font-weight:600;font-size:13px}
+    .tab[aria-selected="true"]{background:var(--primary);color:#fff;border-color:var(--primary-600)}
+    .lesson-card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:12px 12px 10px}
+    .lesson-grid{display:grid;grid-template-columns:auto var(--panel-w);gap:var(--gap)}
+    @media (max-width:760px){:root{--board-size:min(88vw,340px)}.lesson-grid{grid-template-columns:1fr}.panel-toggle{display:inline-flex}.sidepanel{position:fixed;inset:0 0 0 auto;width:min(84vw,320px);transform:translateX(101%);transition:transform .25s ease;z-index:40;background:#0e1730;border-left:1px solid #1d2a4d}.sidepanel.open{transform:translateX(0)}.overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(2px);display:none;z-index:30}.overlay.show{display:block}}
+    .board-wrap{position:relative;width:var(--board-size);margin:0 auto}
+    .board-title{font-weight:700;margin:2px 0 6px;font-size:15px;color:var(--muted)}
+    .dkart-overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
+    .dk-square{position:absolute;color:#000;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center;opacity:.9;border:1px solid rgba(255,255,255,.08)}
+    .dk-3{background:var(--w3)} .dk-2{background:var(--w2)} .dk-1{background:var(--w1)} .dk-0{background:var(--n0);color:#fff;opacity:.65} .dk--1{background:var(--b1)} .dk--2{background:var(--b2)} .dk--3{background:var(--b3)}
+    .sidepanel{border-radius:12px;background:#0f1a34;padding:10px;height:100%}
+    .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+    .panel-title{font-weight:800;letter-spacing:.2px}
+    .move-list{height:160px;overflow:auto;padding-right:6px;border-radius:8px;background:#0c152d;border:1px solid #152243}
+    .ply{padding:6px 8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;display:flex;gap:8px;align-items:center;border-bottom:1px solid #111b37}
+    .ply strong{color:var(--muted);width:30px;text-align:right}
+    .ply .san{padding:2px 8px;border-radius:6px;background:#0e1730;color:#d5ddff;cursor:pointer}
+    .ply .san:hover{background:#152243}
+    .ply .san.active{background:var(--primary);color:#fff}
+    .ply .eval{font-size:11px;color:var(--muted);margin-left:4px}
+    .ply .eval.positive{color:var(--ok)} .ply .eval.negative{color:var(--danger)}
+    .action-buttons{display:flex;gap:8px;margin-top:10px}.action-buttons .btn{flex:1}
+    .btn{appearance:none;border:1px solid #20315e;background:#0e1730;color:#d9e1ff;padding:8px 10px;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn:hover{border-color:#2a3f7b;color:#fff}
+    .btn[aria-pressed="true"]{background:var(--primary);border-color:var(--primary-600);color:#fff}
+    .btn--primary{background:var(--primary);border-color:var(--primary-600);color:#fff}
+    .btn--ghost{opacity:.65}
+    .panel-toggle{display:none;gap:6px;align-items:center;border:1px dashed #2a3f7b;background:#0e1730;color:#cfe0ff;padding:6px 8px;border-radius:10px;font-size:13px}
+    .modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:1000}
+    .modal.show{display:flex;align-items:center;justify-content:center}
+    .modal-content{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;width:90%;max-width:600px;max-height:80vh;overflow-y:auto}
+    .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+    .modal-title{font-size:20px;font-weight:800;color:var(--text)}
+    .close-btn{background:none;border:none;font-size:24px;color:var(--muted);cursor:pointer}
+    .close-btn:hover{color:var(--text)}
+    .modal-section{margin-bottom:20px;padding:16px;border:1px solid #20315e;border-radius:10px}
+    .section-title{font-size:16px;font-weight:700;color:var(--primary-300);margin-bottom:12px}
+    .form-row{display:flex;gap:12px;margin-bottom:12px}
+    .form-group{flex:1}
+    .form-label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:4px}
+    .form-input,.form-select,.form-textarea{width:100%;padding:8px 12px;border:1px solid #20315e;border-radius:8px;background:#0e1730;color:var(--text);font-size:14px}
+    .form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--primary)}
+    .form-textarea{resize:vertical;min-height:120px;font-family:ui-monospace,monospace}
+    .error-message{background:rgba(239,71,111,.1);border:1px solid var(--danger);color:var(--danger);padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:13px}
+    .loading-message{background:rgba(79,124,255,.1);border:1px solid var(--primary);color:var(--primary);padding:8px 12px;border-radius:8px;margin-bottom:12px;font-size:13px}
+    .modal-footer{display:flex;justify-content:flex-end;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid #20315e}
+    .spinner{display:inline-block;width:16px;height:16px;border:2px solid transparent;border-top:2px solid currentColor;border-radius:50%;animation:spin 1s linear infinite;margin-right:8px}
+    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+    .explain{background:#0f1a34;border:1px solid #1a2a55;border-radius:12px;padding:10px;line-height:1.55;max-height:320px;overflow:auto}
+
+    /* Opening Info Panel Styling */
+    .opening-info-panel{background:#0f1a34;border:1px solid #1a2a55;border-radius:12px;padding:12px;font-size:13px;line-height:1.4}
+    .opening-header{margin-bottom:10px}
+    .opening-name{margin:0 0 4px 0;font-size:14px;font-weight:700;color:var(--primary-300)}
+    .opening-meta{display:flex;gap:12px;align-items:center}
+    .popularity{color:var(--accent)}
+    .difficulty{color:var(--muted);font-size:12px}
+
+    .result-stats{margin:12px 0;padding:8px;background:#0c152d;border-radius:8px}
+    .stat-bar{padding:4px 8px;margin:2px 0;border-radius:4px;font-size:12px;font-weight:600;position:relative}
+    .stat-bar.white{background:linear-gradient(90deg,var(--ok) 0%,var(--ok) var(--width,0%),transparent var(--width,0%));color:var(--text)}
+    .stat-bar.draw{background:linear-gradient(90deg,var(--muted) 0%,var(--muted) var(--width,0%),transparent var(--width,0%));color:var(--text)}
+    .stat-bar.black{background:linear-gradient(90deg,var(--danger) 0%,var(--danger) var(--width,0%),transparent var(--width,0%));color:var(--text)}
+    .total-games{text-align:center;margin-top:6px;font-size:11px;color:var(--muted)}
+
+    .opening-description{margin:12px 0}
+    .character{margin:0 0 8px 0;font-style:italic;color:var(--primary-300)}
+    .plans{display:flex;gap:12px;margin-top:8px}
+    .white-plans,.black-plans{flex:1}
+    .white-plans h5,.black-plans h5{margin:0 0 4px 0;font-size:12px;color:var(--text)}
+    .white-plans ul,.black-plans ul{margin:0;padding-left:16px;font-size:11px;color:var(--muted)}
+    .white-plans li,.black-plans li{margin-bottom:2px}
+
+    .popular-moves{margin-top:12px}
+    .popular-moves h5{margin:0 0 6px 0;font-size:12px;color:var(--text)}
+    .move-list{}
+    .move-option{display:flex;align-items:center;gap:8px;padding:4px 6px;margin:2px 0;background:#0c152d;border-radius:6px}
+    .move-option .move{font-weight:700;color:var(--primary-300);min-width:40px}
+    .move-option .percentage{font-size:11px;color:var(--accent);min-width:30px}
+    .move-option .desc{font-size:11px;color:var(--muted);flex:1}
+    .explain h3{margin:8px 0 4px;font-size:15px;color:var(--primary-300)}
+    .gloss{border-bottom:1px dotted var(--accent);cursor:help;position:relative}
+    .gloss::after{content:attr(data-def);position:absolute;left:0;top:100%;transform:translateY(6px);white-space:normal;max-width:280px;z-index:10;background:#101a34;color:#eaf0ff;border:1px solid #20315e;padding:8px 10px;border-radius:10px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:opacity .15s ease}
+    .gloss:hover::after{opacity:1}
+    .helpbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+    .help{font-size:12px;padding:6px 8px;background:#0e1730;border:1px solid #152243;border-radius:999px;color:#bdc8e5}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+    /* Puzzle mode highlighting */
+    .highlight-yellow{background-color:rgba(255,193,7,0.7) !important;}
+    .highlight-green{background-color:rgba(40,167,69,0.7) !important;}
+    .highlight-red{background-color:rgba(220,53,69,0.7) !important;}
+
+    /* Opening panel statistics */
+    .stats-bar-container {
+        display: flex;
+        height: 18px;
+        border-radius: 4px;
+        overflow: hidden;
+        background-color: #0c152d;
+        border: 1px solid #1a2a55;
+        font-size: 10px;
+        color: white;
+        text-align: center;
+    }
+    .stats-bar-segment {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+    .stats-bar-white { background-color: var(--ok); }
+    .stats-bar-draw { background-color: var(--muted); }
+    .stats-bar-black { background-color: var(--danger); }
+
+    .move-stats-line {
+        display: grid;
+        grid-template-columns: 70px 1fr;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 4px;
+        font-size: 12px;
+    }
+    .move-stats-line .move-san { font-weight: bold; }
+		.eval-graph {
+			margin-top: 8px;
+			user-select: none;
+		}
+		.eval-graph svg {
+			width: 100%;
+			height: 140px;            /* responssiv høyde – kan justeres */
+			display: block;
+		}
+		.eval-graph .area-pos { fill: rgba(120, 200, 255, 0.08); }  /* lys felt over 0 */
+		.eval-graph .area-neg { fill: rgba(255, 150, 120, 0.08); }  /* lys felt under 0 */
+		.eval-graph .curve    { fill: none; stroke: #e8803a; stroke-width: 2; }
+		.eval-graph .zero     { stroke: rgba(255,255,255,0.35); stroke-width: 1; }
+		.eval-graph .pt       { fill: #e8803a; opacity: 0.0; }      /* punkter skjult (vi bruker tooltip) */
+		.eval-graph .pt:hover { opacity: 1; }
+		.eval-graph .now      { stroke: rgba(255,255,255,0.5); stroke-width: 1; stroke-dasharray: 4 4; }
+
+		.eval-tooltip {
+			position: fixed;
+			pointer-events: none;
+			z-index: 9999;
+			padding: 6px 10px;
+			font-size: 12px;
+			line-height: 1.25;
+			border: 2px solid #0e2a3a;
+			background: #eef7ff;
+			color: #0e2a3a;
+			border-radius: 10px;
+			box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+			transform: translate(8px, -8px);
+			white-space: nowrap;
+		}
+		@media (prefers-color-scheme: dark) {
+			.eval-tooltip {
+				background: #0b152a;
+				color: #e8f1ff;
+				border-color: #0e2a3a;
+			}
+		}
+
+/* Player Info Panel */
+.player-info-panel {
+  background: #0c152d;
+  border: 1px solid #152243;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+.player-line { display: flex; align-items: baseline; gap: 8px; }
+.player-line.black { color: var(--muted); }
+.player-line .player-name { font-weight: 700; }
+.player-line .player-rating { font-size: 12px; color: var(--muted); }
+.player-line .player-rating-diff { font-size: 11px; font-weight: bold; }
+.player-line .player-rating-diff.positive { color: var(--ok); }
+.player-line .player-rating-diff.negative { color: var(--danger); }
+
+/* Game Meta Info in Panel Head */
+.game-meta-info { font-size: 13px; color: var(--muted); display: flex; gap: 16px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-head">
+      <div>
+        <div class="brand">♟️ SJAKKARO</div>
+      </div>
+      <div class="header-controls">
+        <button class="panel-toggle" id="panelToggle" aria-expanded="false">Trekk & analyse ▸</button>
+        <button class="btn btn--ghost" id="configBtn" title="Konfigurasjon" style="margin-left:8px;">⚙️</button>
+      </div>
+    </header>
+
+    <nav class="tabs" id="tabs" aria-label="Kategorier">
+      <button class="tab" data-c="opening" aria-selected="true">Åpning</button>
+      <button class="tab" data-c="tactics">Taktikk</button>
+      <button class="tab" data-c="strategy">Strategi</button>
+      <button class="tab" data-c="endgame">Sluttspill</button>
+      <button class="tab" data-c="skills">Kjerneferdigheter</button>
+    </nav>
+
+    <section class="lesson-card">
+      <div class="lesson-grid">
+        <div>
+          <div class="board-title" id="boardTitle">Last opp parti for analyse</div>
+          <div class="board-wrap">
+            <div id="board" aria-label="interaktivt sjakkbrett"></div>
+            <div class="dkart-overlay" id="dkart" hidden></div>
+          </div>
+
+          <div class="explain annotate" id="explainBox">
+            <h3>Velkommen til Sjakkaro</h3>
+            <p>
+              Last opp et parti med PGN-knappen for å få avansert analyse.
+              Systemet evaluerer stillinger med <span class="gloss" data-def="Kraftig sjakkmotor for posisjonsvurdering.">Stockfish</span>
+              og genererer <span class="gloss" data-def="AI-basert analyse av nøkkeløyeblikk i partiet.">AI‑coaching</span>.
+            </p>
+          </div>
+
+          <div class="chat-panel" id="chatPanel" style="display: none; margin-top: 14px;">
+            <div class="chat-history" id="chatHistory" style="background:#0c152d; border:1px solid #1a2a55; border-radius:12px; padding:10px; line-height:1.55; max-height:180px; overflow-y:auto; margin-bottom: 8px;">
+              <!-- Meldinger fra chatten vil vises her -->
+            </div>
+            <div class="chat-input-area" style="display: flex; gap: 8px;">
+              <input type="text" id="chatInput" class="form-input" placeholder="Still et spørsmål til AI-coachen...">
+              <button class="btn btn--primary" id="chatSendBtn">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <aside class="sidepanel" id="sidepanel" aria-label="Trekk og analyse">
+          <div class="panel-head">
+            <div class="game-meta-info" id="gameMetaInfo">
+              <!-- Dynamisk: Tid/Resultat -->
+            </div>
+            <div class="nav-buttons">
+              <button class="btn btn--ghost" id="btnStart" title="Gå til start (Pil ned)">«</button>
+              <button class="btn" id="btnPrev" title="Forrige (←)">←</button>
+              <button class="btn" id="btnNext" title="Neste (→)">→</button>
+              <button class="btn btn--ghost" id="btnEnd" title="Gå til siste trekk">»</button>
+            </div>
+          </div>
+
+          <!-- Player Info Panel -->
+          <div class="player-info-panel" id="playerInfoPanel" style="display: none;">
+            <div class="player-line white">
+              <span class="player-name" id="whitePlayerName"></span>
+              <span class="player-rating" id="whitePlayerRating"></span>
+              <span class="player-rating-diff" id="whitePlayerRatingDiff"></span>
+            </div>
+            <div class="player-line black">
+              <span class="player-name" id="blackPlayerName"></span>
+              <span class="player-rating" id="blackPlayerRating"></span>
+              <span class="player-rating-diff" id="blackPlayerRatingDiff"></span>
+            </div>
+          </div>
+
+          <div class="move-list" id="moveList" role="list" aria-live="polite"></div>
+					<div id="evalGraph" class="eval-graph" aria-label="Evalueringsgraf"></div>
+
+          <div class="action-buttons" aria-label="Verktøy">
+            <button class="btn" id="btnDkart" aria-pressed="false">Dkart</button>
+            <button class="btn" id="btnAnalyze">Lichess</button>
+            <button class="btn btn--primary" id="btnPGN">PGN</button>
+          </div>
+
+          <!-- Åpningsinfo-panel -->
+          <div class="opening-info-panel" id="openingInfoPanel" style="display:none;">
+              <h4 class="opening-name" id="openingName">Åpningsnavn</h4>
+              <div id="openingStatsContainer">
+                  <!-- Dynamisk innhold lastes her -->
+              </div>
+              <div class="opening-description" id="openingDescription">
+                  <p id="aiOpeningText">AI-generert beskrivelse lastes her...</p>
+              </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <!-- Configuration Modal -->
+  <div class="modal" id="configModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">⚙️ Konfigurasjon</h2>
+        <button class="close-btn" id="closeConfigModal">&times;</button>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-title">🤖 Stockfish Motor</div>
+        <div class="helpbar">
+          <span class="help">Modus:
+            <label><input type="radio" name="mode" value="movetime" checked> tid</label>
+            <label><input type="radio" name="mode" value="depth"> dybde</label>
+          </span>
+          <span class="help">ms/trekk: <input id="mtInput" type="number" min="200" max="5000" step="100" value="1500" style="width:80px"></span>
+          <span class="help">Depth: <input id="depthInput" type="number" min="8" max="24" value="18" style="width:60px"></span>
+          <span class="help">MultiPV: <input id="mpvInput" type="number" min="1" max="5" value="3" style="width:50px"></span>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-title">📚 Åpningsbok (Lichess)</div>
+        <div class="helpbar">
+          <span class="help">Åpningsbok: <input type="checkbox" id="openingEnabled" checked></span>
+          <span class="help">Strategi:
+            <select id="openingStrategy" style="width:80px;font-size:11px;">
+              <option value="balanced" selected>Balansert</option>
+              <option value="popular">Populær</option>
+              <option value="performance">Resultat</option>
+              <option value="random">Tilfeldig</option>
+            </select>
+          </span>
+          <span class="help">Min partier: <input id="minGamesInput" type="number" min="50" max="1000" step="50" value="100" style="width:60px"></span>
+          <span class="help">Max trekk: <input id="maxPliesInput" type="number" min="10" max="40" step="5" value="20" style="width:50px"></span>
+        </div>
+      </div>
+
+      <!-- AI-innstillinger -->
+      <div class="modal-section">
+        <div class="section-title">🤖 AI</div>
+
+        <div class="form-group">
+          <label class="form-label" for="aiModelSelector">Velg AI-modell</label>
+          <select id="aiModelSelector" class="form-select"></select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="geminiApiKeyInput">Gemini API-nøkkel</label>
+          <input id="geminiApiKeyInput" type="password" class="form-input" placeholder="Lim inn nøkkel her">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="groqApiKeyInput">Groq API-nøkkel</label>
+          <input id="groqApiKeyInput" type="password" class="form-input" placeholder="Lim inn nøkkel her">
+        </div>
+
+        <small>Tips: Nøklene lagres lokalt i nettleseren (localStorage) på denne maskinen.</small>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="resetConfigBtn">Tilbakestill</button>
+        <button class="btn btn--primary" id="saveConfigBtn">Lagre</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PGN Modal -->
+  <div class="modal" id="pgnModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title">📥 Last opp parti</h2>
+        <button class="close-btn" id="closeModal">&times;</button>
+      </div>
+
+      <div id="errorMessage" class="error-message" style="display:none"></div>
+      <div id="loadingMessage" class="loading-message" style="display:none"></div>
+
+      <div class="modal-section">
+        <div class="section-title">📋 Fra Lichess</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="lichessUsername">Brukernavn</label>
+            <input type="text" id="lichessUsername" class="form-input" placeholder="@olanord" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="numGames">Antall</label>
+            <input type="number" id="numGames" class="form-input" min="1" value="1" />
+          </div>
+        </div>
+        <button class="btn btn--primary" id="fetchLichessBtn">Hent partier fra Lichess</button>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-title">📁 Fra fil</div>
+        <input type="file" id="pgnFile" accept=".pgn" style="display:none" />
+        <button class="btn btn--primary" id="loadFileBtn">Last opp fra fil</button>
+      </div>
+
+      <div class="modal-section" id="gameSelectSection" style="display:none">
+        <div class="section-title">Velg parti</div>
+        <div class="form-group">
+          <label class="form-label" for="gameSelect">Velg parti</label>
+          <select id="gameSelect" class="form-select"></select>
+        </div>
+        <button class="btn btn--primary" id="selectGameBtn">Last valgt parti</button>
+      </div>
+
+      <div class="modal-section">
+        <div class="section-title">✏️ Lim inn PGN</div>
+        <div class="form-group">
+          <label class="form-label" for="pgnText">PGN-data</label>
+          <textarea id="pgnText" class="form-textarea" placeholder="Lim inn PGN her..."></textarea>
+        </div>
+        <button class="btn btn--primary" id="loadTextBtn">Last parti fra tekst</button>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" id="cancelBtn">Avbryt</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay"></div>
+
+  <script>
+    /*********************
+     * STATE
+     *********************/
+    const openingTextCache = new Map();
+    let current='opening', board, game, sanList=[], idx=0, playTimer=null, dkOn=false;
+    let evaluations=[], loadedGame=null, engine=null, analysisResolver=null, lastInfo={score:null,depth:null,pv:null};
+    let enhancedEvals=[], gameOpeningInfo=null; // Lagrer utvidet evalueringsdata og åpningsinfo
+    let fileGameList=[];
+
+    // Puzzle system variables
+    let allPuzzles = [];
+    let isInPuzzleMode = false;
+    let currentPuzzle = null;
+    let puzzleSolutionMoves = [];
+    let currentPuzzleStep = 0;
+    let savedAnalysisFEN = '';
+    let chatHistory = [];
+    let selectedOpeningDb = 'lichess';
+    const SERVER_URL='http://localhost:8080';
+
+    // === API-keys i localStorage (ingen backend) ===
+    function getGeminiApiKey() {
+      return localStorage.getItem('geminiApiKey') ?? '';
+    }
+    function setGeminiApiKey(k) {
+      localStorage.setItem('geminiApiKey', (k || '').trim());
+    }
+    function getGroqApiKey() {
+      return localStorage.getItem('groqApiKey') ?? '';
+    }
+    function setGroqApiKey(k) {
+      localStorage.setItem('groqApiKey', (k || '').trim());
+    }
+
+    // === Provider-tabell (kan utvides) ===
+    const AI_PROVIDERS = {
+      'gemini-2.5-flash-lite': {
+        name: 'Gemini 2.5 Flash-Lite',
+        provider: 'gemini',
+        getApiKey: getGeminiApiKey,
+        handler: callGeminiAPI
+      },
+      'deepseek-r1-distill-llama-70b': {
+        name: 'Groq DeepSeek-R1 (70B)',
+        provider: 'groq',
+        getApiKey: getGroqApiKey,
+        handler: callGroqAPI
+      }
+    };
+
+    // === Aktiv modell (med persistens) ===
+    let currentAIModel = localStorage.getItem('aiModel') ?? 'gemini-2.5-flash-lite';
+    function setCurrentAIModel(key) {
+      currentAIModel = key;
+      localStorage.setItem('aiModel', key);
+    }
+
+    // ---- Lichess Opening Book Configuration ----
+    const OPENING_BOOK = {
+      enabled: true,
+      maxPlies: 60,        // Bruk åpningsbok kun de første 30 halvtrekkene
+      minGames: 1,       // Minimum antall partier for å bruke bokdata
+      speeds: 'blitz,rapid,classical',
+      ratings: '1600,1800,2000,2200',
+      strategy: 'balanced'  // 'popular', 'performance', 'balanced', 'random'
+    };
+
+    // Opening book cache
+    const openingCache = new Map();
+    const maxCacheSize = 500;
+    const cacheExpiry = 24 * 60 * 60 * 1000; // 24 timer
+    let lastOpeningQuery = 0; // Rate limiting
+
+    // Wikibooks cache for translated content
+    const wikibooksCache = new Map();
+    const wikibooksCacheExpiry = 7 * 24 * 60 * 60 * 1000; // 1 uke
+
+    // oppdagede UCI-opsjoner
+    const engineCaps = { threads:false, options:{} };
+
+    // bruker‑valg for motor
+    function getEnginePrefs(){
+      const mode = document.querySelector('input[name="mode"]:checked')?.value||'movetime';
+      const ms = Math.max(2000, parseInt(document.getElementById('mtInput').value||'3000',10)); // Økt tid for stabilitet
+      const depth = Math.max(15, parseInt(document.getElementById('depthInput').value||'20',10)); // Økt dybde
+      const mpv = 1; // Kun beste trekk for Lichess-kompatibilitet
+      return { mode, ms, depth, mpv };
+    }
+
+    function updateOpeningBookConfig() {
+      OPENING_BOOK.enabled = document.getElementById('openingEnabled')?.checked ?? true;
+      OPENING_BOOK.strategy = document.getElementById('openingStrategy')?.value || 'balanced';
+      OPENING_BOOK.minGames = Math.max(50, parseInt(document.getElementById('minGamesInput')?.value || '100', 10));
+      OPENING_BOOK.maxPlies = Math.max(10, parseInt(document.getElementById('maxPliesInput')?.value || '20', 10));
+
+      console.log('Opening book config updated:', OPENING_BOOK);
+    }
+
+    /********************* PGN Evaluation Detection & Extraction *********************/
+    function hasEvaluations(pgnText) {
+      // Sjekk om PGN inneholder [%eval] tags
+      return /\[%eval\s+[+-]?(?:\d+\.?\d*|#[+-]?\d+)\]/.test(pgnText);
+    }
+
+    function extractEvaluationsFromPGN(pgnText) {
+      const evals = [];
+      const evalRegex = /\[%eval\s+([+-]?(?:\d+\.?\d*|#[+-]?\d+))\]/g;
+      let match;
+
+      console.log('Extracting evaluations from PGN...');
+
+      while ((match = evalRegex.exec(pgnText)) !== null) {
+        const evalStr = match[1];
+        console.log(`Found eval: ${evalStr}`);
+
+        // Håndter mate-evalueringer (#5, #-3, etc.)
+        if (evalStr.startsWith('#')) {
+          evals.push(evalStr); // Behold mate-format
+        } else {
+          // Numeriske evalueringer - formater med + for positive verdier
+          const num = parseFloat(evalStr);
+          if (!isNaN(num)) {
+            evals.push(num >= 0 ? `+${num.toFixed(2)}` : num.toFixed(2));
+          }
+        }
+      }
+
+      console.log(`Extracted ${evals.length} evaluations:`, evals);
+      return evals;
+    }
+
+    function alignEvaluationsWithMoves(extractedEvals, moveCount) {
+      // PGN evalueringer starter ofte etter første trekk
+      // Vi trenger evaluering for startposisjon (0.00) + alle posisjoner etter trekk
+      const alignedEvals = ['0.00']; // Startposisjon
+
+      // Kopier ekstraherte evalueringer
+      for (let i = 0; i < moveCount && i < extractedEvals.length; i++) {
+        alignedEvals.push(extractedEvals[i]);
+      }
+
+      // Hvis vi mangler evalueringer på slutten, bruk siste kjente verdi
+      while (alignedEvals.length <= moveCount) {
+        const lastEval = alignedEvals[alignedEvals.length - 1];
+        alignedEvals.push(lastEval);
+      }
+
+      console.log(`Aligned ${alignedEvals.length} evaluations for ${moveCount} moves`);
+      return alignedEvals;
+    }
+
+    function showEvaluationSource(source) {
+        const panelTitle = document.querySelector('.panel-title');
+        if (panelTitle) {
+            panelTitle.textContent = 'Trekk';
+        }
+    }
+
+    /********************* Lichess Opening Book API *********************/
+    async function queryLichessOpeningBook(fen) {
+      if (!OPENING_BOOK.enabled) return null;
+
+      // Sjekk cache først
+      const cacheKey = `${fen}-${selectedOpeningDb}`;
+      if (openingCache.has(cacheKey)) {
+        const cached = openingCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < cacheExpiry) {
+          console.log('Using cached opening data for', cacheKey);
+          return cached.data;
+        } else {
+          openingCache.delete(cacheKey);
+        }
+      }
+
+      // Rate limiting - vente minst 1 sekund mellom forespørsler
+      const now = Date.now();
+      const timeSinceLastQuery = now - lastOpeningQuery;
+      if (timeSinceLastQuery < 1000) {
+        await new Promise(resolve => setTimeout(resolve, 1000 - timeSinceLastQuery));
+      }
+      lastOpeningQuery = Date.now();
+
+      try {
+        const baseUrl = `https://explorer.lichess.ovh/${selectedOpeningDb}`;
+        const params = new URLSearchParams({
+          variant: 'standard',
+          fen: fen,
+          speeds: OPENING_BOOK.speeds,
+          ratings: OPENING_BOOK.ratings,
+          moves: '10',
+          topGames: '0',
+          recentGames: '0'
+        });
+
+        // Note: We use the FEN which already represents the position after moves.
+        // No need for 'play' parameter when using FEN.
+
+        console.log(`Querying Lichess opening book: ${baseUrl}?${params}`);
+        const response = await fetch(`${baseUrl}?${params}`);
+
+        if (!response.ok) {
+          throw new Error(`Lichess API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Beregn statistikk for trekkene
+        if (data.moves) {
+          data.moves = data.moves.map(move => {
+            const total = (move.white || 0) + (move.draws || 0) + (move.black || 0);
+            const winRate = total > 0 ? (move.white || 0) / total : 0;
+            const drawRate = total > 0 ? (move.draws || 0) / total : 0;
+            const performance = winRate * 1.0 + drawRate * 0.5; // Performance score
+            return {
+              ...move,
+              total,
+              winRate,
+              drawRate,
+              performance
+            };
+          });
+        }
+
+        // Cache resultatet
+        if (openingCache.size >= maxCacheSize) {
+          // Fjern eldste cache-entry
+          const firstKey = openingCache.keys().next().value;
+          openingCache.delete(firstKey);
+        }
+        openingCache.set(cacheKey, {
+          data,
+          timestamp: Date.now()
+        });
+
+        console.log('Lichess opening data retrieved with', data.moves?.length || 0, 'moves');
+        return data;
+      } catch (error) {
+        console.error('Error querying Lichess opening book:', error);
+        return null;
+      }
+    }
+
+    function calculateOpeningEvaluation(bookData) {
+      if (!bookData || !bookData.moves || bookData.moves.length === 0) return null;
+
+      // Beregn gjennomsnittlig performance basert på alle trekk
+      const totalGames = bookData.moves.reduce((sum, move) => sum + move.total, 0);
+      if (totalGames < OPENING_BOOK.minGames) return null;
+
+      const weightedPerformance = bookData.moves.reduce((sum, move) => {
+        return sum + (move.performance * move.total);
+      }, 0) / totalGames;
+
+      // Konverter performance til centipawn-lignende score
+      // 0.5 = jevnt (0.00), 0.6 = +hvit (+50), 0.4 = +svart (-50)
+      const centipawns = (weightedPerformance - 0.5) * 100;
+      return centipawns >= 0 ? `+${centipawns.toFixed(2)}` : centipawns.toFixed(2);
+    }
+
+    function selectBestOpeningMove(bookData) {
+      if (!bookData || !bookData.moves || bookData.moves.length === 0) return null;
+
+      const moves = bookData.moves.filter(m => m.total >= 10); // Filtrer sjeldne trekk
+      if (!moves.length) return bookData.moves[0];
+
+      switch (OPENING_BOOK.strategy) {
+        case 'popular':
+          return moves.sort((a, b) => b.total - a.total)[0];
+
+        case 'performance':
+          return moves.sort((a, b) => b.performance - a.performance)[0];
+
+        case 'balanced':
+          // Kombiner popularitet (30%) og performance (70%)
+          const scored = moves.map(m => ({
+            ...m,
+            score: (m.total / Math.max(...moves.map(x => x.total))) * 0.3 + m.performance * 0.7
+          }));
+          return scored.sort((a, b) => b.score - a.score)[0];
+
+        case 'random':
+          // Vektet tilfeldig basert på performance
+          const weights = moves.map(m => Math.max(0.1, m.performance * Math.sqrt(m.total)));
+          const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+          const rand = Math.random() * totalWeight;
+          let cumulative = 0;
+          for (let i = 0; i < moves.length; i++) {
+            cumulative += weights[i];
+            if (rand <= cumulative) return moves[i];
+          }
+          return moves[0];
+
+        default:
+          return moves.sort((a, b) => b.total - a.total)[0];
+      }
+    }
+
+    /********************* Wikibooks Integration *********************/
+    function formatMovesForWikibooks(moves) {
+      // Konverter ["e4", "e5", "Nf3", "Nc6"] til "1._e4/1...e5/2._Nf3/2...Nc6"
+      let formatted = "";
+      for (let i = 0; i < moves.length; i += 2) {
+        const moveNum = Math.floor(i / 2) + 1;
+        formatted += `${moveNum}._${moves[i]}`;
+        if (moves[i + 1]) {
+          formatted += `/${moveNum}...${moves[i + 1]}`;
+        }
+        if (i + 2 < moves.length) formatted += "/";
+      }
+      return formatted;
+    }
+
+    async function fetchWikibooksOpening(moveSequence) {
+      if (!moveSequence || moveSequence.length === 0) return null;
+
+      try {
+        // Konverter trekk til Wikibooks URL-format
+        const urlPath = formatMovesForWikibooks(moveSequence);
+        const wikiUrl = `Chess_Opening_Theory/${urlPath}`;
+
+        console.log(`Fetching Wikibooks: ${wikiUrl}`);
+
+        // Bruk Wikipedia API for å hente Wikibooks-innhold
+        const apiUrl = `https://en.wikibooks.org/w/api.php?action=query&format=json&origin=*&prop=extracts&exintro&explaintext&titles=${encodeURIComponent(wikiUrl)}`;
+
+        const response = await fetch(apiUrl);
+        if (!response.ok) throw new Error(`Wikibooks API error: ${response.status}`);
+
+        const data = await response.json();
+        const pages = data.query?.pages;
+
+        if (!pages) return null;
+
+        const pageId = Object.keys(pages)[0];
+        const page = pages[pageId];
+
+        if (page.missing) {
+          console.log(`Wikibooks page not found: ${wikiUrl}`);
+          return null;
+        }
+
+        return {
+          title: page.title,
+          extract: page.extract,
+          url: `https://en.wikibooks.org/wiki/${wikiUrl.replace(/ /g, '_')}`
+        };
+
+      } catch (error) {
+        console.error('Wikibooks fetch error:', error);
+        return null;
+      }
+    }
+
+    async function loadChessDictionary() {
+      try {
+        const response = await fetch('/docs/norsk_sjakk_ordbok.csv');
+        if (!response.ok) throw new Error('Could not load chess dictionary');
+
+        const csvText = await response.text();
+        const lines = csvText.split('\n');
+        const translations = [];
+
+        // Parse CSV (skip header)
+        for (let i = 2; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          // Simple CSV parsing - kan forbedres ved behov
+          const match = line.match(/^"?([^"]+)"?\s+"[^"]*"\s+"[^"]*"\s+"?([^"]*)"?$/);
+          if (match) {
+            const norwegianTerm = match[1].trim();
+            const englishNote = match[2].trim();
+
+            // Trekk ut engelske termer fra "Falsk Venn"-kolonnen
+            if (englishNote && englishNote !== 'undefined') {
+              const englishTerms = englishNote.match(/[A-Z][a-z]+/g);
+              if (englishTerms) {
+                englishTerms.forEach(eng => {
+                  translations.push(`${eng} → ${norwegianTerm}`);
+                });
+              }
+            }
+          }
+        }
+
+        return translations.slice(0, 50).join('\n'); // Begrens til de viktigste termene
+
+      } catch (error) {
+        console.error('Dictionary loading error:', error);
+        // Fallback til hard-kodet viktige termer
+        return `Opening → Åpning
+Defense → Forsvar
+Attack → Angrep
+Control → Kontroll
+Development → Utvikling
+Center → Sentrum
+Piece → Brikke
+Pawn → Bonde
+Knight → Springer
+Bishop → Løper
+Rook → Tårn
+Queen → Dronning
+King → Konge
+Gambit → Gambit
+Strategy → Strategi
+Tactics → Taktikk`;
+      }
+    }
+
+    async function translateOpeningInfo(englishContent) {
+      if (!englishContent) return englishContent;
+
+      try {
+        const dictionary = await loadChessDictionary();
+
+        const prompt = `Oversett følgende sjakkåpningsinformasjon til norsk. Bruk den vedlagte norske sjakkordboken for korrekte fagtermer.
+
+VIKTIGE OVERSETTELSESREGLER:
+${dictionary}
+
+Oversett til naturlig norsk, men behold sjakkfaglige termer korrekt. Fokuser på:
+1. Åpningskarakteristikk og spillestil
+2. Typiske planer for hvit og svart
+3. Vanlige feller og taktiske motiver
+4. Pedagogiske råd
+
+Tekst som skal oversettes:
+${englishContent.substring(0, 1000)} // Begrens lengde
+
+Returner kun den oversatte teksten uten ekstra kommentarer.`;
+
+        const translatedText = await getAICompletion(prompt);
+
+        return translatedText || englishContent;
+
+      } catch (error) {
+        console.error('Translation error:', error);
+        return englishContent; // Fallback til engelsk
+      }
+    }
+
+    async function getOpeningTheory(moveSequence) {
+      if (!moveSequence || moveSequence.length === 0) return null;
+
+      const cacheKey = moveSequence.join('_');
+
+      // Sjekk cache først
+      if (wikibooksCache.has(cacheKey)) {
+        const cached = wikibooksCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < wikibooksCacheExpiry) {
+          console.log('Using cached Wikibooks data for', cacheKey);
+          return cached.data;
+        }
+      }
+
+      try {
+        // Hent fra Wikibooks
+        const wikiContent = await fetchWikibooksOpening(moveSequence);
+        if (!wikiContent) return null;
+
+        // Oversett til norsk
+        const translatedContent = await translateOpeningInfo(wikiContent.extract);
+
+        const result = {
+          ...wikiContent,
+          translatedExtract: translatedContent,
+          character: extractOpeningCharacter(translatedContent),
+          plans: extractPlans(translatedContent)
+        };
+
+        // Cache resultatet
+        if (wikibooksCache.size >= maxCacheSize) {
+          const firstKey = wikibooksCache.keys().next().value;
+          wikibooksCache.delete(firstKey);
+        }
+
+        wikibooksCache.set(cacheKey, {
+          data: result,
+          timestamp: Date.now()
+        });
+
+        console.log('Wikibooks theory loaded and translated for', cacheKey);
+        return result;
+
+      } catch (error) {
+        console.error('Opening theory fetch error:', error);
+        return null;
+      }
+    }
+
+    function extractOpeningCharacter(text) {
+      // Enkel parsing for å finne åpningskarakteristikk
+      const sentences = text.split('. ').slice(0, 2);
+      return sentences.join('. ') + (sentences.length > 0 ? '.' : '');
+    }
+
+    function extractPlans(text) {
+      // Enkel parsing for å finne planer (kan forbedres)
+      const whitePlans = [];
+      const blackPlans = [];
+
+      // Look for common plan indicators
+      const whiteKeywords = ['hvit', 'white', 'first player'];
+      const blackKeywords = ['svart', 'black', 'second player'];
+
+      const sentences = text.toLowerCase().split('.');
+
+      sentences.forEach(sentence => {
+        if (whiteKeywords.some(kw => sentence.includes(kw))) {
+          if (sentence.length < 100 && sentence.length > 10) {
+            whitePlans.push(sentence.trim());
+          }
+        } else if (blackKeywords.some(kw => sentence.includes(kw))) {
+          if (sentence.length < 100 && sentence.length > 10) {
+            blackPlans.push(sentence.trim());
+          }
+        }
+      });
+
+      return {
+        white: whitePlans.slice(0, 3),
+        black: blackPlans.slice(0, 3)
+      };
+    }
+
+    /********************* Chat Functions *********************/
+    // NYE FUNKSJONER FOR CHAT
+
+    // Hovedfunksjon for å håndtere sending av meldinger
+    async function handleChatMessage() {
+        const chatInput = document.getElementById('chatInput');
+        const userMessage = chatInput.value.trim();
+        if (!userMessage) return;
+
+        appendMessageToChat(userMessage, 'user');
+        chatInput.value = '';
+        showLoadingInChat();
+
+        // Samle all nødvendig kontekst
+        const currentFEN = game.fen();
+        const whitePlayer = loadedGame.white || 'Hvit';
+        const blackPlayer = loadedGame.black || 'Svart';
+
+        // Legg til brukerens melding i historikken
+        chatHistory.push({ role: 'user', content: userMessage });
+
+        // Hent svar fra AI med full kontekst
+        const response = await getAIChatResponse(chatHistory, currentFEN, whitePlayer, blackPlayer);
+
+        // Legg til AI-ens svar i historikken
+        chatHistory.push({ role: 'ai', content: response });
+
+        removeLoadingFromChat();
+        appendMessageToChat(response, 'ai');
+    }
+
+    // Funksjon for å kalle Gemini API for et chat-svar
+    async function getAIChatResponse(chatHistory, currentFEN, whitePlayer, blackPlayer) {
+        try {
+            const analysisContext = document.getElementById('explainBox').innerText;
+
+            // Formater chat-historikken for prompten
+            const formattedHistory = chatHistory.map(msg =>
+                `${msg.role === 'user' ? 'Elev' : 'Sjakkaro'}: ${msg.content}`
+            ).join('\n');
+
+            // Dette er den nye, forbedrede Prompt0
+            const chatPrompt = `ROLLE OG MÅL
+Du er AI-sjakktreneren Sjakkaro. Din personlighet er ekspert, pedagogisk og oppmuntrende. Du er i en samtale med en ungdomsskoleelev om et sjakkparti de har spilt.
+
+KONTEKST FOR SAMTALEN
+-   **Partianalyse:** Du har allerede gitt eleven følgende analyse:\n---ANALYSE---\n${analysisContext}\n---SLUTT PÅ ANALYSE---
+-   **Spillere:** Partiet ble spilt mellom ${whitePlayer} (Hvit) og ${blackPlayer} (Svart).
+-   **Nåværende Stilling:** Eleven ser nå på stillingen representert ved denne FEN-strengen: \`${currentFEN}\`. Du MÅ bruke denne stillingen som utgangspunkt for svaret ditt.
+-   **Samtalehistorikk:** Her er den pågående samtalen:\n${formattedHistory}
+
+OPPGAVE
+Svar på elevens siste melding. Vær kortfattet, pedagogisk og motiverende. Bruk norsk sjakkterminologi. Fortsett samtalen med din etablerte "Sjakkaro"-personlighet.`;
+
+            return await getAICompletion(chatPrompt);
+        } catch (e) {
+            console.error('Chat error:', e);
+            return "Beklager, jeg klarte ikke å behandle spørsmålet ditt akkurat nå.";
+        }
+    }
+
+    // Hjelpefunksjoner for å oppdatere chat-vinduet
+    function appendMessageToChat(message, sender) {
+        const chatHistory = document.getElementById('chatHistory');
+        const messageDiv = document.createElement('div');
+        messageDiv.style.marginBottom = '10px';
+        messageDiv.innerHTML = `<strong>${sender === 'user' ? 'Du' : 'AI-Coach'}:</strong><br>${message.replace(/\n/g, '<br>')}`;
+        chatHistory.appendChild(messageDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight; // Scroll til bunnen
+    }
+
+    function showLoadingInChat() {
+        const chatHistory = document.getElementById('chatHistory');
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'chatLoading';
+        loadingDiv.innerHTML = `<span class="spinner"></span> AI-coachen tenker...`;
+        chatHistory.appendChild(loadingDiv);
+        chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function removeLoadingFromChat() {
+        const loadingDiv = document.getElementById('chatLoading');
+        if (loadingDiv) loadingDiv.remove();
+    }
+
+    /********************* AI Abstraction Layer *********************/
+    // Sentralt inngangspunkt for all AI-kommunikasjon
+    async function getAICompletion(prompt, opts = {}) {
+      const provider = AI_PROVIDERS[currentAIModel];
+      if (!provider) return `Feil: AI-leverandør '${currentAIModel}' ikke funnet.`;
+
+      const apiKey = provider.getApiKey();
+      if (!apiKey) return 'Mangler API-nøkkel for valgt AI-leverandør. Åpne innstillinger og legg inn nøkkelen.';
+
+      try {
+        return await provider.handler(prompt, currentAIModel, apiKey, opts);
+      } catch (e) {
+        console.error(`Error with AI provider ${currentAIModel}:`, e);
+        return `Det oppstod en feil med AI-tjenesten (${currentAIModel}).`;
+      }
+    }
+
+    // Adapter: Gemini API
+    async function callGeminiAPI(prompt, modelId, apiKey, opts = {}) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent?key=${apiKey}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }]}],
+          generationConfig: {
+            temperature: opts.temperature ?? 0.4,
+            maxOutputTokens: opts.max_tokens ?? 1024
+          }
+        })
+      });
+
+      const data = await r.json();
+      if (!r.ok || !data?.candidates?.[0]) {
+        console.error('Gemini error:', r.status, data);
+        throw new Error(data?.error?.message || 'Gemini API call failed');
+      }
+      return data.candidates[0].content.parts[0].text;
+    }
+
+    // Adapter: Groq API (OpenAI-kompatibelt)
+    async function callGroqAPI(prompt, modelId, apiKey, opts = {}) {
+      const url = 'https://api.groq.com/openai/v1/chat/completions';
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [
+            { role: 'system', content: 'Du er en norsk sjakktrener. Svar kort, presist og pedagogisk.' },
+            { role: 'user', content: prompt }
+          ],
+          temperature: opts.temperature ?? 0.4,
+          max_tokens: opts.max_tokens ?? 4096
+        })
+      });
+
+      const data = await r.json();
+      if (!r.ok || !data?.choices?.[0]?.message?.content) {
+        console.error('Groq error:', r.status, data);
+        throw new Error(data?.error?.message || 'Groq API call failed');
+      }
+      return data.choices[0].message.content;
+    }
+
+    // Database selector handler
+    function handleDbChange() {
+        selectedOpeningDb = document.querySelector('input[name="openingDb"]:checked').value;
+        console.log(`Opening database changed to: ${selectedOpeningDb}`);
+        openingTextCache.clear();
+        updateDynamicOpeningInfo();
+    }
+
+    /********************* AI Model Selector Functions *********************/
+    function populateAIModelSelector() {
+      const sel = document.getElementById('aiModelSelector');
+      if (!sel) return;
+      sel.innerHTML = '';
+      for (const key in AI_PROVIDERS) {
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = AI_PROVIDERS[key].name;
+        if (key === currentAIModel) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change', e => {
+        setCurrentAIModel(e.target.value);
+        console.log('AI model switched to:', currentAIModel);
+      });
+    }
+
+    function loadAIKeyInputs() {
+      const gIn = document.getElementById('geminiApiKeyInput');
+      const qIn = document.getElementById('groqApiKeyInput');
+      if (gIn) gIn.value = getGeminiApiKey();
+      if (qIn) qIn.value = getGroqApiKey();
+    }
+
+    // Kall denne fra modalens "Lagre"-knapp
+    function saveAISettingsFromModal() {
+      const gIn = document.getElementById('geminiApiKeyInput');
+      const qIn = document.getElementById('groqApiKeyInput');
+      if (gIn) setGeminiApiKey(gIn.value);
+      if (qIn) setGroqApiKey(qIn.value);
+      // re-valider aktiv provider etter lagring
+      const p = AI_PROVIDERS[currentAIModel];
+      if (p && !p.getApiKey()) {
+        alert('Husk å legge inn API-nøkkel for valgt modell før bruk.');
+      }
+    }
+
+    /********************* Opening Info Panel Update *********************/
+    async function updateDynamicOpeningInfo() {
+        if (!OPENING_BOOK.enabled || isInPuzzleMode || sanList.length === 0) {
+            document.getElementById('openingInfoPanel').style.display = 'none';
+            return;
+        }
+
+        const panel = document.getElementById('openingInfoPanel');
+        panel.style.display = 'block';
+
+        const fen = game.fen();
+        const bookData = await queryLichessOpeningBook(fen);
+
+				if (!bookData || !bookData.moves || bookData.moves.length === 0) {
+					panel.style.display = 'none';
+					return;
+				}
+				panel.style.display = 'block';
+
+				// Tittel: bruk ECO/navn hvis tilgjengelig, ellers nøytral tittel
+				const nameEl = document.getElementById('openingName');
+				if (nameEl) {
+					if (bookData.opening) {
+						const eco = bookData.opening.eco ? `${bookData.opening.eco}: ` : '';
+						nameEl.textContent = `${eco}${bookData.opening.name}`;
+					} else {
+						nameEl.textContent = 'Åpningsstatistikk';
+					}
+				}
+        // 2. Oppdater statistikk-seksjonen
+        updateOpeningStatsUI(bookData);
+
+        // 3. Hent og vis AI-beskrivelse
+        const aiTextEl = document.getElementById('aiOpeningText');
+        const currentFen = game.fen();
+
+        if (openingTextCache.has(currentFen)) {
+            // Hent fra cache
+            aiTextEl.textContent = openingTextCache.get(currentFen);
+        } else {
+            // Hent fra AI og lagre i cache
+            aiTextEl.innerHTML = `<span class="spinner"></span> Laster AI-forklaring...`;
+
+            const moveSequence = game.history().slice(0, idx);
+            const theoryData = await getOpeningTheory(moveSequence);
+
+            const aiDescription = await getAIOpeningMoveExplanation(bookData, theoryData);
+            aiTextEl.textContent = aiDescription;
+
+            // Lagre resultatet i cachen
+            openingTextCache.set(currentFen, aiDescription);
+        }
+    }
+
+    function updateOpeningStatsUI(bookData) {
+      const container = document.getElementById('openingStatsContainer');
+      container.innerHTML = '';
+
+      if (!bookData?.moves?.length) {
+        container.innerHTML = '<p style="font-size:12px; color:var(--muted);">Ingen statistikk for denne stillingen.</p>';
+        return;
+      }
+
+      // DB-velger øverst
+      const dbSelector = document.createElement('div');
+      dbSelector.style.cssText = "margin-bottom: 10px; display: flex; gap: 16px; align-items: center; font-size: 12px;";
+      dbSelector.innerHTML = `
+        <label style="cursor:pointer;"><input type="radio" name="openingDb" value="lichess" onchange="handleDbChange()" ${selectedOpeningDb === 'lichess' ? 'checked' : ''}> Lichess</label>
+        <label style="cursor:pointer;"><input type="radio" name="openingDb" value="masters" onchange="handleDbChange()" ${selectedOpeningDb === 'masters' ? 'checked' : ''}> Masters</label>
+      `;
+      container.appendChild(dbSelector);
+
+      const totalGames = bookData.moves.reduce((s, m) => s + m.total, 0);
+      const currentMoveData = { white: bookData.white, draws: bookData.draws, black: bookData.black };
+
+      const lastMoveSan = game.history()[idx - 1] || 'Start';
+      container.appendChild(createStatsLine(lastMoveSan, totalGames, currentMoveData, totalGames, true));
+
+      // Topp 3 neste trekk
+      bookData.moves.slice(0, 3).forEach(move => {
+        container.appendChild(createStatsLine(move.san, move.total, move, totalGames));
+      });
+    }
+
+    function createStatsLine(label, games, data, totalGames, isHeader = false) {
+        const line = document.createElement('div');
+        line.className = 'move-stats-line';
+
+        const percentage = totalGames > 0 ? ((games / totalGames) * 100).toFixed(0) : 0;
+        const labelText = isHeader ? `<strong>${label}</strong>` : `<span class="move-san">${label}</span> <span style="color:var(--muted);">${percentage}%</span>`;
+
+        const totalResults = data.white + data.draws + data.black;
+        const whitePct = totalResults > 0 ? (data.white / totalResults * 100) : 0;
+        const drawPct = totalResults > 0 ? (data.draws / totalResults * 100) : 0;
+        const blackPct = 100 - whitePct - drawPct;
+
+        line.innerHTML = `
+            <div>${labelText}</div>
+            <div class="stats-bar-container">
+                <div class="stats-bar-segment stats-bar-white" style="width: ${whitePct}%;" title="Hvit vinner">${whitePct.toFixed(0)}%</div>
+                <div class="stats-bar-segment stats-bar-draw" style="width: ${drawPct}%;" title="Remis">${drawPct.toFixed(0)}%</div>
+                <div class="stats-bar-segment stats-bar-black" style="width: ${blackPct}%;" title="Svart vinner">${blackPct.toFixed(0)}%</div>
+            </div>
+        `;
+        return line;
+    }
+
+    async function getAIOpeningMoveExplanation(bookData, theoryData) {
+        try {
+            const lastMove = game.history({ verbose: true })[idx - 1]?.san || "Startposisjon";
+            const openingName = bookData.opening?.name || "Ukjent åpning";
+            let statsText = '';
+            if (bookData.moves && bookData.moves.length > 0) {
+                const topMove = bookData.moves[0];
+                const totalGames = bookData.moves.reduce((sum, m) => sum + m.total, 0);
+                const movePopularity = totalGames > 0 ? (topMove.total / totalGames * 100).toFixed(0) : 'N/A';
+                statsText = `Mest populære svar er ${topMove.san} (spilt i ${movePopularity}% av partiene).`;
+            }
+            const wikibooksText = theoryData?.translatedExtract || "Ingen spesifikk teori funnet.";
+            const dbSourceName = selectedOpeningDb === 'lichess' ? 'Lichess-databasen (alle spillere)' : 'Mester-databasen (tittelspillere)';
+
+            const prompt = `
+Rolle: Du er AI-sjakktreneren Sjakkaro for nybegynnere (ca. 900 Elo i spillestyrke).
+Oppgave: Forklar det siste trekket i en sjakkåpning, eller gi en introduksjon til partiet hvis det er startposisjonen. Bruk dataen du får til å skrive en kort, lærerik beskrivelse (maks 5-7 setninger).
+Regler:
+1.  Bruk kun norske sjakkbegreper.
+2.  Vær presis, enkel og motiverende.
+3.  Fokuser på det som er relevant for en nybegynner.
+4.  Vær objektiv og tidløs. Unngå "Lykke til" etc.
+5.  PRIORITERING: Baser forklaringen din primært på trekkets grunnleggende formål og statistikken fra den valgte databasen. Bruk Wikibooks-teksten som sekundær kontekst.
+6.  HVIS DATA MANGLER: Fokuser på generelle strategiske ideer.
+Struktur:
+-   Trekkets formål (hva oppnår det?).
+-   Planer og ideer (hva er den vanligste planen?).
+-   Vanlige fortsettelser (hva er den mest populære responsen?).
+Data:
+-   Datakilde i bruk: ${dbSourceName}
+-   Siste trekk: ${lastMove}
+-   Åpningens navn: ${openingName}
+-   Statistikk: ${statsText}
+-   Teoretisk kontekst: ${wikibooksText}
+SPESIALINSTRUKSJON:
+-   Hvis "Datakilde" er "Mester-databasen", legg vekt på hva mesterne foretrekker sammenlignet med generelle trekk.
+-   Hvis "Siste trekk" er "Startposisjon", gi en generell introduksjon til åpningen.
+Generer kun den norske beskrivelsesteksten.`;
+
+            return await getAICompletion(prompt);
+        } catch (e) {
+            console.error('AI opening explanation error:', e);
+            return "Kunne ikke laste forklaring for dette trekket.";
+        }
+    }
+
+    // Konverter SAN moves til UCI format for Opening Book API
+    function sanToUciMoves(sanMoves, maxMoves = -1) {
+      const chess = new Chess();
+      const uciMoves = [];
+
+      const movesToProcess = maxMoves > 0 ? sanMoves.slice(0, maxMoves) : sanMoves;
+
+      for (const san of movesToProcess) {
+        const move = chess.move(san);
+        if (!move) break;
+        uciMoves.push(move.from + move.to + (move.promotion || ''));
+      }
+
+      return uciMoves;
+    }
+
+    function buildFenFromMoves(moves) {
+      const chess = new Chess();
+      for (const uci of moves) {
+        const from = uci.slice(0, 2);
+        const to = uci.slice(2, 4);
+        const promotion = uci.slice(4) || undefined;
+        chess.move({from, to, promotion});
+      }
+      return chess.fen();
+    }
+
+    // Hybrid evaluering: PGN > Opening Book > Stockfish
+    async function getHybridEvaluation(positionIndex, uciMoves, pgnEvals) {
+      // 1. Sjekk først PGN-evalueringer (raskest og mest pålitelig)
+      if (pgnEvals && pgnEvals[positionIndex]) {
+        return {
+          source: 'PGN',
+          evaluation: pgnEvals[positionIndex],
+          opening: null,
+          stats: null
+        };
+      }
+
+      // 2. Prøv åpningsbok for tidlige trekk
+      if (OPENING_BOOK.enabled && positionIndex <= OPENING_BOOK.maxPlies) {
+        try {
+          const fen = buildFenFromMoves(uciMoves);
+          const bookData = await queryLichessOpeningBook(fen);
+
+          if (bookData) {
+            console.log('Opening book data found:', bookData);
+            const evaluation = calculateOpeningEvaluation(bookData);
+            console.log('Calculated evaluation:', evaluation);
+            console.log('Opening info from API:', bookData.opening);
+            if (evaluation !== null) {
+              return {
+                source: 'Opening',
+                evaluation: evaluation,
+                opening: bookData.opening || { name: 'Unknown Opening' },
+                eco: bookData.opening?.eco,
+                stats: {
+                  totalGames: bookData.moves.reduce((sum, m) => sum + m.total, 0),
+                  topMoves: bookData.moves.slice(0, 3).map(m => ({
+                    san: m.san,
+                    total: m.total,
+                    performance: (m.performance * 100).toFixed(1)
+                  }))
+                }
+              };
+            }
+          }
+        } catch (error) {
+          console.warn('Opening book query failed:', error);
+        }
+      }
+
+      // 3. Fall tilbake til Stockfish
+      const prefs = getEnginePrefs();
+      const stockfishResult = await analyzePositionWithMoves(uciMoves, prefs);
+      let score = stockfishResult?.score ?? '0.00';
+
+      // Juster perspektiv til Lichess-standard (alltid fra hvits perspektiv)
+      if(/^(-?\d+(?:\.\d+)?)$/.test(String(score))) {
+        let num = parseFloat(score);
+        const isBlackToMove = (positionIndex % 2 === 1);
+        if(isBlackToMove) {
+          num = -num; // Inverter evalueringen for svarts trekk
+        }
+        score = num >= 0 ? '+' + num.toFixed(2) : num.toFixed(2);
+      }
+
+      return {
+        source: 'Stockfish',
+        evaluation: score,
+        opening: null,
+        stats: null
+      };
+    }
+
+    function updatePlayerInfoPanel(gameData) {
+      const panel = document.getElementById('playerInfoPanel');
+      if (!gameData) { panel.style.display = 'none'; return; }
+
+      document.getElementById('whitePlayerName').textContent   = gameData.white || 'Hvit';
+      document.getElementById('whitePlayerRating').textContent = gameData.whiteElo ? `(${gameData.whiteElo})` : '';
+      const wDiff = document.getElementById('whitePlayerRatingDiff');
+      if (gameData.whiteRatingDiff != null && gameData.whiteRatingDiff !== '') {
+        const d = parseInt(gameData.whiteRatingDiff, 10);
+        wDiff.textContent = `(${d >= 0 ? '+' : ''}${d})`;
+        wDiff.className = 'player-rating-diff ' + (d >= 0 ? 'positive' : 'negative');
+      } else { wDiff.textContent = ''; wDiff.className = 'player-rating-diff'; }
+
+      document.getElementById('blackPlayerName').textContent   = gameData.black || 'Svart';
+      document.getElementById('blackPlayerRating').textContent = gameData.blackElo ? `(${gameData.blackElo})` : '';
+      const bDiff = document.getElementById('blackPlayerRatingDiff');
+      if (gameData.blackRatingDiff != null && gameData.blackRatingDiff !== '') {
+        const d = parseInt(gameData.blackRatingDiff, 10);
+        bDiff.textContent = `(${d >= 0 ? '+' : ''}${d})`;
+        bDiff.className = 'player-rating-diff ' + (d >= 0 ? 'positive' : 'negative');
+      } else { bDiff.textContent = ''; bDiff.className = 'player-rating-diff'; }
+
+      panel.style.display = 'block';
+    }
+
+    function updateGameMetaInfo(gameData) {
+      const metaEl = document.getElementById('gameMetaInfo');
+      metaEl.innerHTML = '';
+      if (!gameData) return;
+      const parts = [];
+      if (gameData.timeControl) parts.push(`<span>Tid: ${gameData.timeControl}</span>`);
+      if (gameData.result)      parts.push(`<span>Res: ${gameData.result}</span>`);
+      metaEl.innerHTML = parts.join('');
+    }
+
+    function init(){
+      document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',onTab));
+      document.getElementById('btnPrev').addEventListener('click',prevMove);
+      document.getElementById('btnNext').addEventListener('click',nextMove);
+      document.getElementById('btnStart').addEventListener('click',resetPosition);
+      document.getElementById('btnEnd').addEventListener('click',goToEnd);
+      document.getElementById('btnDkart').addEventListener('click',toggleDkart);
+      document.getElementById('btnAnalyze').addEventListener('click',openLichessAnalysis);
+      document.getElementById('btnPGN').addEventListener('click',openPGNModal);
+      document.getElementById('closeModal').addEventListener('click',closePGNModal);
+      document.getElementById('cancelBtn').addEventListener('click',closePGNModal);
+      document.getElementById('configBtn').addEventListener('click',openConfigModal);
+      document.getElementById('closeConfigModal').addEventListener('click',closeConfigModal);
+      document.getElementById('saveConfigBtn').addEventListener('click',saveConfig);
+      document.getElementById('resetConfigBtn').addEventListener('click',resetConfig);
+      document.getElementById('fetchLichessBtn').addEventListener('click',fetchLichessGames);
+      document.getElementById('loadFileBtn').addEventListener('click',()=>document.getElementById('pgnFile').click());
+      document.getElementById('pgnFile').addEventListener('change',handleFileInput);
+      document.getElementById('selectGameBtn').addEventListener('click',selectGameFromFile);
+      document.getElementById('loadTextBtn').addEventListener('click',loadFromText);
+
+      // Chat event listeners
+      document.getElementById('chatSendBtn').addEventListener('click', handleChatMessage);
+      document.getElementById('chatInput').addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+              handleChatMessage();
+          }
+      });
+
+      // Add opening book configuration listeners
+      document.getElementById('openingEnabled')?.addEventListener('change', updateOpeningBookConfig);
+      document.getElementById('openingStrategy')?.addEventListener('change', updateOpeningBookConfig);
+      document.getElementById('minGamesInput')?.addEventListener('input', updateOpeningBookConfig);
+      document.getElementById('maxPliesInput')?.addEventListener('input', updateOpeningBookConfig);
+
+      // Les aktiv modell før vi fyller UI
+      currentAIModel = localStorage.getItem('aiModel') ?? 'gemini-2.5-flash-lite';
+
+      // Migrer gamle modell-nøkler til nye ID-baserte nøkler
+      if (currentAIModel === 'gemini-flash-lite') {
+        setCurrentAIModel('gemini-2.5-flash-lite');
+        currentAIModel = 'gemini-2.5-flash-lite';
+        console.log('Migrated from old Gemini key to model-ID based key');
+      }
+      if (currentAIModel === 'groq-llama3-8b' || currentAIModel === 'groq-deepseek-r1') {
+        setCurrentAIModel('deepseek-r1-distill-llama-70b');
+        currentAIModel = 'deepseek-r1-distill-llama-70b';
+        console.log('Migrated from old Groq key to model-ID based key');
+      }
+
+      // Migrer gammel hardkodet nøkkel til localStorage (hvis den ikke allerede finnes)
+      if (!getGeminiApiKey() && typeof GEMINI_API_KEY !== 'undefined' && GEMINI_API_KEY) {
+        setGeminiApiKey('AIzaSyBhT--1GglCIdvAN_zq7NzFuwcd9bWFfrA');
+      }
+
+      // Fyll AI UI
+      populateAIModelSelector();
+      loadAIKeyInputs();
+
+      const panelToggle=document.getElementById('panelToggle');
+      const sidepanel=document.getElementById('sidepanel');
+      const overlay=document.getElementById('overlay');
+      panelToggle.addEventListener('click',()=>{sidepanel.classList.toggle('open');overlay.classList.toggle('show');panelToggle.setAttribute('aria-expanded',sidepanel.classList.contains('open'))});
+      overlay.addEventListener('click',()=>{sidepanel.classList.remove('open');overlay.classList.remove('show');panelToggle.setAttribute('aria-expanded','false')});
+
+      window.addEventListener('keydown',(e)=>{
+        if(!e.key) return;
+        if(e.key==='ArrowRight'){ nextMove(); }
+        else if(e.key==='ArrowLeft'){ prevMove(); }
+        else if(e.key==='ArrowUp'){ e.preventDefault(); /* autoplay fjernet */ }
+        else if(e.key==='ArrowDown'){ resetPosition(); }
+        else if(e.key==='CapsLock'){ toggleDkart(); }
+      });
+
+      const cfg={
+        position:'start',
+        draggable:true,
+        showNotation:true,
+        pieceTheme:'https://cdn.jsdelivr.net/gh/lichess-org/lila@master/public/piece/alpha/{piece}.svg',
+        onDrop: handlePieceDrop
+      };
+      if(window.Chessboard){board=Chessboard('board',cfg);} else if(window.ChessBoard){board=ChessBoard('board',cfg);} else if(window.jQuery&&$.fn&&$.fn.chessboard){board=$('#board').chessboard(cfg);} else {throw new Error('Chessboard library not found.');}
+
+      loadCategory('opening');
+      tryStartEngine();
+      window.addEventListener('resize',()=>{board.resize(); if(dkOn) drawDkart();});
+
+      // Load puzzle data on startup
+      loadPuzzleData();
+    }
+
+    /********************* Modal utils *********************/
+    function openPGNModal(){document.getElementById('pgnModal').classList.add('show');clearInputs();clearMessages();}
+    function closePGNModal(){document.getElementById('pgnModal').classList.remove('show');clearMessages();clearInputs();}
+
+    function openConfigModal(){
+      populateAIModelSelector();
+      loadAIKeyInputs();
+      document.getElementById('configModal').classList.add('show');
+    }
+    function closeConfigModal(){document.getElementById('configModal').classList.remove('show');}
+
+    function saveConfig(){
+      updateOpeningBookConfig();
+      saveAISettingsFromModal();
+      closeConfigModal();
+      console.log('Configuration saved');
+    }
+
+    function resetConfig(){
+      // Reset to default values
+      document.querySelector('input[name="mode"][value="movetime"]').checked = true;
+      document.getElementById('mtInput').value = 1500;
+      document.getElementById('depthInput').value = 18;
+      document.getElementById('mpvInput').value = 3;
+      document.getElementById('openingEnabled').checked = true;
+      document.getElementById('openingStrategy').value = 'balanced';
+      document.getElementById('minGamesInput').value = 100;
+      document.getElementById('maxPliesInput').value = 20;
+
+      // Reset AI settings
+      setCurrentAIModel('gemini-2.5-flash-lite');
+      document.getElementById('geminiApiKeyInput').value = '';
+      document.getElementById('groqApiKeyInput').value = '';
+      populateAIModelSelector();
+
+      updateOpeningBookConfig();
+      console.log('Configuration reset to defaults');
+    }
+    function clearMessages(){document.getElementById('errorMessage').style.display='none';document.getElementById('loadingMessage').style.display='none'}
+    function showError(msg){const el=document.getElementById('errorMessage');el.textContent=msg;el.style.display='block';document.getElementById('loadingMessage').style.display='none'}
+    function showLoading(msg){const el=document.getElementById('loadingMessage');el.innerHTML=`<span class="spinner"></span>${msg}`;el.style.display='block';document.getElementById('errorMessage').style.display='none'}
+    function hideMessages(){clearMessages()}
+    function clearInputs(){document.getElementById('lichessUsername').value='';document.getElementById('pgnText').value='';const fi=document.getElementById('pgnFile');if(fi) fi.value='';const sect=document.getElementById('gameSelectSection');if(sect) sect.style.display='none';const sel=document.getElementById('gameSelect');if(sel) sel.innerHTML='';fileGameList=[]}
+
+    async function fetchLichessGames(){
+      const username=document.getElementById('lichessUsername').value.trim().replace('@','');
+      const numGames=parseInt(document.getElementById('numGames').value)||1;
+      if(!username){showError('Vennligst skriv inn et Lichess‑brukernavn.');return}
+      showLoading('Henter partier fra Lichess...');
+      try{
+        // 1) prøv lokal server hvis du kjører en proxy/back‑end
+        const resp = await fetch(`${SERVER_URL}/fetch_lichess_games`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username, max_games:numGames})});
+        if(resp.ok){const data=await resp.json(); if(data.games?.length){await loadGameData(data.games[0]); closePGNModal(); return;} else {showError('Ingen partier funnet.'); return;}}
+        // hvis ikke ok, faller vi til direkte‑hent
+        throw new Error('Local server not available');
+      }catch(_){
+        // 2) Direktehenting fra Lichess API (PGN som tekst). CORS er tillatt av Lichess.
+        try{
+          // NB: application/x-chess-pgn returnerer flere partier i rekkefølge
+          const url=`https://lichess.org/api/games/user/${encodeURIComponent(username)}?max=${numGames}&moves=true`;
+          const r = await fetch(url,{headers:{'Accept':'application/x-chess-pgn'}});
+          if(!r.ok){throw new Error(`Lichess svarte ${r.status}`)}
+          const text = await r.text();
+          // splitt på [Event]
+          const chunks = text.replace(/\r\n/g,'\n').trim().split(/\n\n(?=\[Event)/g).filter(s=>s.trim().length>0);
+          if(!chunks.length){throw new Error('Fant ingen partier i svaret')}
+          await loadGameFromPGN(chunks[0]);
+          closePGNModal();
+        }catch(e){console.error('Lichess fetch error:', e); showError('Kunne ikke hente partier fra Lichess (ingen lokal server, og direktekall feilet).');}
+      }
+    }
+
+    async function loadFromText(){
+      const pgnText=document.getElementById('pgnText').value.trim();
+      if(!pgnText){showError('PGN-data kan ikke være tom.');return}
+      showLoading('Behandler PGN...');
+      try{await loadGameFromPGN(pgnText);closePGNModal();}catch(e){console.error('Text load error:',e);showError('Kunne ikke tolke PGN-data. Sjekk format.');}
+    }
+
+    async function handleFileInput(ev){
+      const file=ev.target.files&&ev.target.files[0]; if(!file){showError('Vennligst velg en PGN‑fil.');return}
+      showLoading('Laster fil...');
+      try{const text=await file.text();const normalized=text.replace(/\r\n/g,'\n');const chunks=normalized.trim().split(/\n\n(?=\[Event)/g).filter(x=>x.trim().length>0);
+        if(chunks.length<=1){await loadGameFromPGN(chunks[0]||normalized);closePGNModal();}
+        else{fileGameList=chunks;const select=document.getElementById('gameSelect');select.innerHTML='';chunks.forEach((pgn,i)=>{let label=`Parti ${i+1}`;try{const header={};const re=/\[(\w+)\s+"([^"]*)"\]/g;let m;while((m=re.exec(pgn))) header[m[1]]=m[2];const w=header.White||'Ukjent';const b=header.Black||'Ukjent';const d=header.Date||'';label=`${i+1}: ${w} vs ${b}${d?` (${d})`:''}`}catch{} const opt=document.createElement('option');opt.value=String(i);opt.textContent=label;select.appendChild(opt)});document.getElementById('gameSelectSection').style.display='block';hideMessages();}
+      }catch(e){console.error('File load error:',e);showError('Kunne ikke laste PGN‑fil.');}
+    }
+
+    async function selectGameFromFile(){
+      try{const sel=document.getElementById('gameSelect');const k=parseInt(sel.value,10);if(isNaN(k)||!fileGameList[k]){showError('Ugyldig partisvalg.');return}
+        await loadGameFromPGN(fileGameList[k]); fileGameList=[]; document.getElementById('gameSelect').innerHTML=''; document.getElementById('gameSelectSection').style.display='none'; closePGNModal();
+      }catch(e){console.error('Select game error:',e);showError('Kunne ikke laste valgt parti.');}
+    }
+
+    async function loadGameFromPGN(pgnText){
+      const normalized=pgnText.replace(/\r\n/g,'\n');
+      const chunks=normalized.trim().split(/\n\n(?=\[Event)/g);
+      const pgn=(chunks||normalized).trim();
+      const chess=new Chess();
+      if(!chess.load_pgn(pgn,{sloppy:true})) throw new Error('Ugyldig PGN');
+      const header=chess.header();
+      const gameData={
+        id:header.Site?.split('/').pop()||`manual-${Date.now()}`,
+        pgn
+      };
+      await loadGameData(gameData);
+    }
+
+    async function loadGameData(gameData){
+      selectedOpeningDb = 'lichess';
+      // Legg til disse linjene for å tilbakestille chatten
+      document.getElementById('chatHistory').innerHTML = '';
+      document.getElementById('chatPanel').style.display = 'none';
+      chatHistory = [];
+
+      openingTextCache.clear();
+      loadedGame = gameData;
+
+      game = new Chess();
+      game.load_pgn(gameData.pgn,{sloppy:true});
+      const header = game.header();
+
+      // Utvid hodeinfo
+      loadedGame.white = header.White || 'Ukjent';
+      loadedGame.black = header.Black || 'Ukjent';
+      loadedGame.result = header.Result || '*';
+      loadedGame.whiteElo = header.WhiteElo;
+      loadedGame.blackElo = header.BlackElo;
+      loadedGame.whiteRatingDiff = header.WhiteRatingDiff;
+      loadedGame.blackRatingDiff = header.BlackRatingDiff;
+      loadedGame.timeControl = header.TimeControl;
+
+      const history=game.history();
+      game.reset();
+      sanList=history; idx=0;
+      board.position('start');
+
+      // Tittel skal være statisk – navn vises i spillerpanelet
+      document.getElementById('boardTitle').textContent = 'Partianalyse';
+      updatePlayerInfoPanel(loadedGame);
+      updateGameMetaInfo(loadedGame);
+
+      renderMoveList();
+      updateButtons();
+
+      // Parse opening info from PGN headers (works for all game loading paths)
+      gameOpeningInfo = null;
+      if (gameData.pgn) {
+        console.log('🔍 Parsing opening from PGN headers...');
+        const ecoMatch = gameData.pgn.match(/\[ECO\s+"([^"]*)"\]/);
+        const openingMatch = gameData.pgn.match(/\[Opening\s+"([^"]*)"\]/);
+        console.log('ECO match:', ecoMatch);
+        console.log('Opening match:', openingMatch);
+        if (ecoMatch && openingMatch) {
+          gameOpeningInfo = {
+            name: openingMatch[1],
+            eco: ecoMatch[1],
+            totalGames: 0,
+            source: 'PGN'
+          };
+          console.log('✅ Opening info from PGN headers:', gameOpeningInfo);
+        } else {
+          console.log('❌ No opening info found in PGN headers');
+        }
+      }
+
+      // Sjekk om PGN allerede inneholder evalueringer
+      if (hasEvaluations(gameData.pgn)) {
+        console.log('PGN contains evaluations - using existing evals instead of Stockfish');
+        showLoading('Bruker eksisterende evalueringer fra PGN...');
+
+        try {
+          // Ekstraher evalueringer fra PGN
+          const extractedEvals = extractEvaluationsFromPGN(gameData.pgn);
+          evaluations = alignEvaluationsWithMoves(extractedEvals, sanList.length);
+
+          // Initialize enhancedEvals for PGN path
+          enhancedEvals = evaluations.map(eval => ({
+            source: 'PGN',
+            evaluation: eval,
+            opening: null,
+            stats: null
+          }));
+          console.log('Initialized enhancedEvals for PGN path:', enhancedEvals.length);
+
+          // Oppdater UI og gå direkte til AI-analyse
+          renderMoveList();
+          hideMessages();
+
+          // Vis evalueringskilde i UI
+          showEvaluationSource('PGN');
+
+          console.log('Using PGN evaluations:', evaluations);
+          await analyzeGame();
+
+          // Update opening information panel after loading game with PGN evaluations
+          console.log('🎯 After PGN eval loading - calling updateDynamicOpeningInfo');
+          updateDynamicOpeningInfo();
+        } catch (error) {
+          console.error('Error processing PGN evaluations:', error);
+          showError('Feil ved behandling av PGN-evalueringer. Faller tilbake til Stockfish...');
+          // Fallback til normal Stockfish-evaluering
+          await evaluateGamePositions();
+        }
+      } else {
+        console.log('PGN has no evaluations - running Stockfish analysis');
+        // Normal arbeidsflyt med Stockfish
+        await evaluateGamePositions();
+      }
+    }
+
+    /********************* Stockfish *********************/
+    function tryStartEngine(){
+      try{
+        console.log('Starting Stockfish engine...');
+        engine=new Worker('stockfish.js');
+        engine.onmessage=(e)=>handleEngineMsg(String(e.data));
+        engine.onerror=(e)=>{console.error('Stockfish worker error:', e);};
+        engine.postMessage('uci');
+        console.log('UCI command sent');
+      }
+      catch(e){
+        console.error('Fant ikke stockfish.js i mappen.',e);
+        alert('Legg stockfish.js (WASM build) i samme mappe som index.html.');
+      }
+    }
+
+    function handleEngineMsg(msg){
+      console.log('Stockfish:', msg); // Debug log
+
+      if(msg==="uciok"){ // sett opsjoner når UCI er etablert
+        console.log('Setting engine options...');
+        const { mpv } = getEnginePrefs();
+
+        // Kun sett opsjoner som denne motoren støtter
+        engine.postMessage(`setoption name MultiPV value ${mpv}`);
+
+        // Sjekk at Hash ikke er låst til 16 (som i console output)
+        if(engineCaps.options.Hash && engineCaps.options.Hash.max > 16) {
+          engine.postMessage('setoption name Hash value 64');
+        }
+
+        if(engineCaps.threads && engineCaps.options.Threads && engineCaps.options.Threads.max > 1){
+          engine.postMessage('setoption name Threads value '+Math.min(2, engineCaps.options.Threads.max));
+        }
+
+        console.log('Sending isready...');
+        engine.postMessage('isready');
+        return;
+      }
+      if(msg.startsWith('option name ')){
+        // parse opsjoner for å oppdage Threads mv.
+        // eksempel: option name Threads type spin default 1 min 1 max 1024
+        const m = msg.match(/^option name (\S+) type (\S+)(.*)$/);
+        if(m){
+          const name=m[1]; const type=m[2]; const rest=m[3]||''; const opt={type};
+          const d=rest.match(/default\s+([\S]+)/); if(d) opt.default=d[1];
+          const min=rest.match(/min\s+(\d+)/); const max=rest.match(/max\s+(\d+)/);
+          if(min) opt.min=parseInt(min[1],10); if(max) opt.max=parseInt(max[1],10);
+          engineCaps.options[name]=opt; if(name==='Threads') engineCaps.threads=true;
+        }
+        return;
+      }
+      if(msg==='readyok'){ console.log('✅ Stockfish klar'); return; }
+      if(msg.startsWith('info')){
+        const mMate=msg.match(/score mate (-?\d+)/); const mCp=msg.match(/score cp (-?\d+)/); const mD=msg.match(/ depth (\d+)/); const pvM=msg.match(/ pv (.+)/);
+        if(mMate){
+          const n=parseInt(mMate[1],10);
+          // Konverter til Lichess-format (#X for mate)
+          lastInfo.score = n>=0 ? `#${n}` : `#${Math.abs(n)}`;
+        }
+        if(mCp){
+          let score = parseInt(mCp[1],10) / 100;
+          // Ingen perspektiv-justering her - det gjøres i evaluateGamePositions basert på posisjon-indeks
+          lastInfo.score = score.toFixed(2);
+        }
+        if(mD){ lastInfo.depth=parseInt(mD[1],10); }
+        if(pvM){ lastInfo.pv=pvM[1]; }
+        return;
+      }
+      if(msg.startsWith('bestmove')){
+        console.log('Bestmove received:', msg); // Debug log
+        if(analysisResolver){
+          const r=analysisResolver;
+          analysisResolver=null;
+          r(lastInfo);
+        }
+        return;
+      }
+    }
+
+    function uciPositionFromMoves(moves){ return `position startpos${moves?.length?(' moves '+moves.join(' ')):' '}`; }
+
+    function analyzePositionWithMoves(moves, prefs){
+      return new Promise((resolve, reject)=>{
+        lastInfo={score:null,depth:null,pv:null};
+        let settled=false;
+
+        const cleanup=()=>{ analysisResolver=null; };
+
+        const hardTimeout=setTimeout(()=>{
+          if(!settled){
+            settled=true;
+            console.log('Analysis timeout - stopping engine');
+            try{engine.postMessage('stop')}catch(e){console.log('Stop error:', e)}
+            cleanup();
+            reject(new Error('Analysis timeout'));
+          }
+        }, 10000); // 10 seconds
+
+        analysisResolver=(final)=>{
+          if(settled) return;
+          settled=true;
+          clearTimeout(hardTimeout);
+          cleanup();
+          console.log('Analysis completed:', final);
+          resolve(final);
+        };
+
+        try{
+          console.log('Starting analysis for moves:', moves);
+
+          // Simplified command sequence
+          engine.postMessage('stop');
+
+          setTimeout(() => {
+            if(settled) return;
+
+            const posCmd = uciPositionFromMoves(moves);
+            console.log('Sending position:', posCmd);
+            engine.postMessage(posCmd);
+
+            // Bruk alltid movetime for bedre kompatibilitet
+            const moveTime = prefs.mode === 'movetime' ? prefs.ms : 1000;
+            const goCmd = `go movetime ${moveTime}`;
+            console.log('Sending go command:', goCmd);
+            engine.postMessage(goCmd);
+          }, 100);
+        }catch(err){
+          if(!settled) {
+            settled=true;
+            clearTimeout(hardTimeout);
+            cleanup();
+            reject(err);
+          }
+        }
+      });
+    }
+
+    async function evaluateGamePositions(){
+      if(!loadedGame || sanList.length===0) return;
+      if(!engine) tryStartEngine();
+
+      // Vent litt på at engine skal bli klar
+      console.log('Waiting for engine to be ready...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      updateOpeningBookConfig(); // Oppdater konfigurasjon før evaluering
+      showLoading('Evaluerer stillinger med hybrid-tilnærming...');
+
+      // bygg alle posisjoner som UCI‑trekksekvenser
+      const temp=new Chess(); const positions=[[]]; // startpos
+      for(const m of sanList){
+        const mo=temp.move(m);
+        if(!mo){console.warn('Ugyldig trekk i history',m); break;}
+        positions.push([...(positions[positions.length-1]), mo.from+mo.to+(mo.promotion||'')]);
+      }
+
+      evaluations=[];
+      enhancedEvals=[];
+      let sourceStats = { PGN: 0, Opening: 0, Stockfish: 0 };
+
+      // gameOpeningInfo should already be set from loadGameData()
+      console.log('🔍 Starting evaluateGamePositions with gameOpeningInfo:', gameOpeningInfo);
+
+      for(let i=0;i<positions.length;i++){
+        try{
+          const result = await getHybridEvaluation(i, positions[i], null);
+
+          evaluations.push(result.evaluation);
+          enhancedEvals.push(result);
+          sourceStats[result.source]++;
+
+          // Update opening info with Lichess data when available
+          if (result.source === 'Opening' && result.opening && result.opening.name) {
+            gameOpeningInfo = {
+              name: result.opening.name,
+              eco: result.opening.eco || result.eco || gameOpeningInfo?.eco,
+              totalGames: result.stats?.totalGames || 0,
+              source: 'Lichess'
+            };
+            console.log('gameOpeningInfo updated with Lichess data:', gameOpeningInfo);
+          }
+
+          const phase = result.source === 'Opening' ? 'Åpningsbok' :
+                       result.source === 'PGN' ? 'PGN-data' : 'Stockfish';
+          console.log(`Position ${i}: ${result.evaluation} (${phase})`);
+
+        }catch(e){
+          console.warn('Pos',i,'feilet:',e.message);
+          const fb=evaluations.length? evaluations[evaluations.length-1] : '0.00';
+          evaluations.push(fb);
+          enhancedEvals.push({source: 'Error', evaluation: fb, opening: null, stats: null});
+        }
+        const p=Math.round((i+1)/positions.length*100);
+        showLoading(`Evaluerer stillinger (hybrid)... ${p}%`);
+      }
+
+      // Vis evalueringskilde basert på hvilken som ble brukt mest
+      const primarySource = Object.keys(sourceStats).reduce((a, b) => sourceStats[a] > sourceStats[b] ? a : b);
+      if (sourceStats.Opening > 0 && sourceStats.Stockfish > 0) {
+        showEvaluationSource('Hybrid');
+      } else {
+        showEvaluationSource(primarySource);
+      }
+
+      console.log('Evaluation sources used:', sourceStats);
+      if (gameOpeningInfo) {
+        console.log('Opening detected:', gameOpeningInfo);
+      }
+
+      renderMoveList();
+      hideMessages();
+      await analyzeGame();
+
+      // Update opening information panel
+      console.log('🎯 About to call updateDynamicOpeningInfo');
+      updateDynamicOpeningInfo();
+    }
+
+    /********************* AI‑analyse + autoscroll‑fix *********************/
+    function mdToHtml(md){
+      // Minimal konvertering for overskrifter og fet tekst slik at autoscroll kan finne <h3>
+      let html=md.replace(/^###\s+(.+)$/gm,'<h3>$1</h3>');
+      html=html.replace(/^##\s+(.+)$/gm,'<h2>$1</h2>');
+      html=html.replace(/^#\s+(.+)$/gm,'<h1>$1</h1>');
+      html=html.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+      html=html.replace(/\n\n/g,'\n'); // litt kompakt
+      html=html.replace(/\n/g,'<br/>');
+      return html;
+    }
+
+    async function analyzeGame(){
+      if(!loadedGame) return; showLoading('Analyserer parti med AI...');
+      try{
+        // inkluder evals i prompt med trekk-detaljer og åpningskontext
+        let evalSummary='';
+        let moveDetails='';
+        let openingContext='';
+
+        // Åpningsinformasjon
+        if(gameOpeningInfo) {
+          openingContext = `\n\nÅPNINGSINFORMASJON:\n`;
+          openingContext += `- Åpning: ${gameOpeningInfo.eco ? gameOpeningInfo.eco + ' - ' : ''}${gameOpeningInfo.name}\n`;
+          openingContext += `- Basert på ${gameOpeningInfo.totalGames.toLocaleString()} Lichess-partier\n`;
+
+          // Finn åpningsbok-evalueringer og legg til kontext
+          const openingEvals = enhancedEvals.filter(e => e && e.source === 'Opening').slice(0, 5);
+          if(openingEvals.length > 0) {
+            openingContext += `- Teoretisk vurdering av de første ${openingEvals.length} trekkene\n`;
+            openingContext += `- Sammenlign spillerens valg med mesterspill-statistikk\n`;
+          }
+        }
+
+        if(evaluations.length){
+          evalSummary='\n\nEVALUERINGER for hver posisjon (0=start):\n';
+          moveDetails='\n\nTrekK-DETALJER for referanse:\n';
+
+          for(let i=0;i<Math.min(evaluations.length,sanList.length+1);i++){
+            const mv=i===0?'start':sanList[i-1]||'?';
+            const source = enhancedEvals[i] ? enhancedEvals[i].source : 'Unknown';
+            const sourceLabel = source === 'Opening' ? '(Åpningsbok)' :
+                               source === 'PGN' ? '(PGN)' :
+                               source === 'Stockfish' ? '(Stockfish)' : '';
+
+            evalSummary+=`#${i} ${mv}: ${evaluations[i]||'0.00'} ${sourceLabel}\n`;
+
+            if(i>0){
+              const moveNum = Math.ceil(i / 2);
+              const color = (i % 2 === 1) ? 'Hvit' : 'Svart';
+              moveDetails+=`Trekk ${moveNum}. ${color}: ${mv}\n`;
+            }
+          }
+        }
+        // Forbered listen med gyldige temaer for prompten
+        const validThemes = ["fork", "pin", "skewer", "discoveredAttack", "backRankMate", "attraction", "deflection", "mateIn2", "advantage", "crushing", "endgame"];
+        const validThemesString = validThemes.join(', ');
+
+        const prompt = `ROLLE OG MÅL
+Du er en AI-sjakktrener ved navn Sjakkaro. Din personlighet er ekspert, pedagogisk og oppmuntrende. Du snakker til en elev på ungdomsskolen som er nybegynner i sjakk.
+Ditt mål er ikke bare å påpeke feil, men å bygge elevens forståelse, intuisjon og gode vaner. Analysen skal være en positiv læringsopplevelse som motiverer til å spille mer.
+
+KRITERIER FOR Å VELGE NØKKELØYEBLIKK
+Du skal identifisere 3-4 av de mest lærerike øyeblikkene i partiet. Ikke bare se på de største svingningene i evalueringen. Bruk følgende prioriterte kriterier:
+1.    Den Uutnyttede Sjansen (Høyest prioritet): Finn et trekk der motstanderen gjorde en klar feil, men eleven ikke fant det beste svaret. Forklar hva eleven overså og hvorfor det var en viktig mulighet.
+2.    Den Store Feilen (Bukk): Identifiser en alvorlig feil eleven gjorde. Fokuser på tankeprosessen: Hvorfor var dette en feil, og hvordan kunne den vært unngått ved å sjekke for sjakker, slag og trusler?
+3.    Brudd på et Prinsipp: Finn et trekk som bryter med et viktig, grunnleggende sjakkprinsipp (f.eks. å flytte dronningen for tidlig, unødvendige bondetrekk foran egen konge, dårlig utvikling). Bruk dette til å forklare hvorfor prinsippet er viktig.
+4.    Positiv Forsterkning (Balanser analysen): For å unngå en negativ tone, prøv å inkludere minst ett positivt øyeblikk. Dette kan være et trekk der eleven spilte spesielt bra, fulgte en god plan, eller fant en smart taktisk idé.
+
+STRUKTUR FOR ANALYSEN (MARKDOWN)
+1. Innledning
+Start med en kort, positiv og overordnet kommentar om partiet. Nevn for eksempel noe begge spillere gjorde bra.${gameOpeningInfo ? ` Inkluder åpningsnavn og teoretisk kontekst.` : ``}
+
+2. Nøkkeløyeblikk
+Presenter de 3-4 øyeblikkene du valgte basert på kriteriene over. Bruk dette formatet for hvert:
+•    Overskrift: \`### Nøkkeløyeblikk X (Trekk Y. MOVE): En Lærerik Tittel\`
+•    Hva skjedde: Beskriv trekket og den umiddelbare situasjonen.
+•    Vurdering: Forklar hvorfor dette øyeblikket er viktig. Knytt det til ett av kriteriene (f.eks. "Her hadde du en gyllen mulighet..." eller "Dette trekket bryter med prinsippet om...").
+•    Bedre alternativer: Vis det beste trekket og forklar kort hvorfor det er bedre.
+
+3. Anbefalte Øvelser (Puzzles)
+Hvis et nøkkeløyeblikk egner seg spesielt godt for praktisk øving, kan du foreslå en oppgave.
+•    Skriv en kort, informativ setning som leder inn til øvelsen.
+•    VIKTIG: Rett etter setningen, på en ny linje, legg til en maskinlesbar tag: \`[PUZZLE_THEME: tema_navn]\`. Velg det mest relevante 'tema_navn' fra denne listen: ${validThemesString}.
+
+4. Oppsummering og Treningstips
+Oppsummer de 2-3 viktigste læringspunktene fra dette spesifikke partiet. Gi konkrete treningstips som er direkte knyttet til feilene eller de uutnyttede sjansene du identifiserte i nøkkeløyeblikkene.
+
+INPUT-DATA TILGJENGELIG FOR DEG
+Du har tilgang til følgende data for å gjøre analysen din:
+•    PGN: Hele partiet.
+•    Åpningsinformasjon: ${gameOpeningInfo ? `Partiet startet med ${gameOpeningInfo.name}.` : ''}
+•    Evalueringsliste: En liste med evalueringer for hver stilling. Store svingninger indikerer ofte, men ikke alltid, et nøkkeløyeblikk. Bruk denne som en guide, ikke en fasit.
+•    Trekkliste: En nummerert liste over alle trekk.
+
+VIKTIGE REGLER
+•    Språk: BRUK KUN NORSKE SJAKKBEGREPER fra den vedlagte ordboken.
+•    Tone: Vær alltid motiverende, selv når du påpeker feil.
+
+${gameOpeningInfo ? `SPESIELL INSTRUKSJON: Dette partiet spiller ${gameOpeningInfo.name}. Kommenter på avvik fra åpningsteori og sammenlign med statistikk fra ${gameOpeningInfo.totalGames.toLocaleString()} partier. Evalueringer merket "(Åpningsbok)" er basert på mesterspill-data.\n\n` : ``}PGN:\n${loadedGame.pgn}\n${openingContext}${evalSummary}${moveDetails}`;
+        let md = await getAICompletion(prompt) || 'Ingen analyse.';
+
+        // Search for [PUZZLE_THEME: ...] tags and replace with buttons
+        md = md.replace(/\[PUZZLE_THEME:\s*(\w+)\]/g, (match, theme) => {
+          console.log('Found puzzle theme:', theme);
+          return `<button class="btn btn--primary" onclick="startPuzzleSequence('${theme}')">🧩 Start øvelse</button>`;
+        });
+
+        const html=mdToHtml(md);
+        const box=document.getElementById('explainBox'); box.innerHTML = `<h3>AI‑analyse</h3><div class="ai" style="line-height:1.6;">${html}</div>`;
+        hideMessages();
+        document.getElementById('chatPanel').style.display = 'block';
+
+        // Update opening information panel after AI analysis is complete
+        console.log('🎯 After AI analysis - calling updateDynamicOpeningInfo');
+        updateDynamicOpeningInfo();
+      }catch(e){ console.error('Analysis error:',e); showError('Kunne ikke analysere partiet med AI. Sett gyldig API‑nøkkel.'); }
+    }
+
+    /********************* PUZZLE SYSTEM *********************/
+
+    // Load puzzle data from CSV file
+    async function loadPuzzleData() {
+      try {
+        console.log('Loading puzzle data from CSV...');
+        const response = await fetch('assets/lichess_puzzles_1200.csv');
+        if (!response.ok) throw new Error('Failed to load puzzle CSV');
+
+        const csvText = await response.text();
+        const lines = csvText.split('\n');
+        const headers = lines[0].split(',');
+
+        allPuzzles = [];
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const values = line.split(',');
+          if (values.length >= headers.length) {
+            const puzzle = {};
+            headers.forEach((header, index) => {
+              puzzle[header] = values[index];
+            });
+
+            // Only include puzzles in rating range 800-1400
+            const rating = parseInt(puzzle.Rating);
+            if (rating >= 800 && rating <= 1400) {
+              allPuzzles.push(puzzle);
+            }
+          }
+        }
+
+        console.log(`Loaded ${allPuzzles.length} puzzles in rating range 800-1400`);
+        return true;
+      } catch (error) {
+        console.error('Error loading puzzle data:', error);
+        return false;
+      }
+    }
+
+    // Start puzzle sequence based on theme
+    function startPuzzleSequence(theme) {
+      console.log('Starting puzzle sequence for theme:', theme);
+
+      if (allPuzzles.length === 0) {
+        showError('Oppgavedata ikke lastet. Prøv å laste siden på nytt.');
+        return;
+      }
+
+      // Find suitable puzzle for the theme
+      const suitablePuzzles = allPuzzles.filter(puzzle => {
+        return puzzle.Themes && puzzle.Themes.includes(theme);
+      });
+
+      if (suitablePuzzles.length === 0) {
+        showError(`Ingen oppgaver funnet for tema: ${theme}`);
+        return;
+      }
+
+      // Select random puzzle from suitable ones
+      const randomIndex = Math.floor(Math.random() * suitablePuzzles.length);
+      const selectedPuzzle = suitablePuzzles[randomIndex];
+
+      launchPuzzle(selectedPuzzle);
+    }
+
+    // Launch a specific puzzle
+    function launchPuzzle(puzzle) {
+      console.log('Launching puzzle:', puzzle.PuzzleId);
+
+      // Save current analysis state
+      savedAnalysisFEN = game.fen();
+
+      // Set puzzle mode
+      isInPuzzleMode = true;
+      currentPuzzle = puzzle;
+      currentPuzzleStep = 0;
+
+      // Prepare solution moves
+      puzzleSolutionMoves = puzzle.Moves.split(' ');
+      console.log('Puzzle solution moves:', puzzleSolutionMoves);
+
+      // Load puzzle position
+      game.load(puzzle.FEN);
+      board.position(puzzle.FEN);
+
+      // Update board title
+      document.getElementById('boardTitle').textContent = `Oppgave ${puzzle.PuzzleId} (Rating: ${puzzle.Rating})`;
+
+      // Auto-play first move (scenario setup) after 500ms
+      setTimeout(() => {
+        if (puzzleSolutionMoves.length > 0) {
+          const firstMove = puzzleSolutionMoves[0];
+
+          // Execute the first move
+          const move = game.move({
+            from: firstMove.substring(0, 2),
+            to: firstMove.substring(2, 4),
+            promotion: firstMove.length > 4 ? firstMove[4] : undefined
+          });
+
+          if (move) {
+            board.position(game.fen());
+
+            // Bestem spillerens farge og roter brettet om nødvendig
+            const playerColor = game.turn() === 'w' ? 'white' : 'black';
+            board.orientation(playerColor);
+
+            // Highlight the move with yellow color for 2 seconds
+            highlightMove(firstMove.substring(0, 2), firstMove.substring(2, 4), 'yellow', 2000);
+
+            const playerColorName = playerColor === 'white' ? 'hvit' : 'svart';
+            const instruction = translateThemeToInstruction(puzzle.Themes);
+            document.getElementById('boardTitle').textContent = `Du spiller ${playerColorName}, kan du ${instruction}?`;
+          }
+        }
+      }, 500);
+    }
+
+    // Highlight a move on the board
+    function highlightMove(from, to, color = 'yellow', duration = 2000) {
+      // Remove any existing highlights
+      $('.square-55d63').removeClass('highlight-yellow highlight-green highlight-red');
+
+      // Add highlight
+      $(`.square-${from}`).addClass(`highlight-${color}`);
+      $(`.square-${to}`).addClass(`highlight-${color}`);
+
+      // Remove highlight after duration
+      setTimeout(() => {
+        $(`.square-${from}`).removeClass(`highlight-${color}`);
+        $(`.square-${to}`).removeClass(`highlight-${color}`);
+      }, duration);
+    }
+
+    // Complete puzzle successfully
+    function completePuzzle() {
+      document.getElementById('boardTitle').textContent = "Oppgave løst! Bra jobbet!";
+
+      // Wait 2-3 seconds then exit puzzle mode
+      setTimeout(() => {
+        exitPuzzleMode();
+      }, 2500);
+    }
+
+    // NY HJELPEFUNKSJON FOR PUZZLE-INSTRUKSJONER
+    function translateThemeToInstruction(themes) {
+        if (themes.includes('mateIn1')) return "finn sjakkmatt i ett trekk";
+        if (themes.includes('mateIn2')) return "finn sjakkmatt i to trekk";
+        if (themes.includes('mateIn3')) return "finn sjakkmatt i tre trekk";
+        if (themes.includes('crushing')) return "skaff deg en knusende fordel";
+        if (themes.includes('advantage')) return "skaff deg en avgjørende fordel";
+        if (themes.includes('fork')) return "finn en gaffel";
+        if (themes.includes('pin')) return "utnytt en binding";
+        return "finn det beste trekket"; // Fallback
+    }
+
+    // Exit puzzle mode and return to analysis
+    function exitPuzzleMode() {
+      isInPuzzleMode = false;
+      currentPuzzle = null;
+      puzzleSolutionMoves = [];
+      currentPuzzleStep = 0;
+
+      // Restore analysis position
+      if (savedAnalysisFEN) {
+        game.load(savedAnalysisFEN);
+        board.position(savedAnalysisFEN);
+        savedAnalysisFEN = '';
+      }
+
+      // Legg til denne linjen for å sikre at brettet alltid er riktig vei i analysemodus
+      board.orientation('white');
+
+      // Restore board title
+      if (loadedGame) {
+        document.getElementById('boardTitle').textContent = `${loadedGame.white} vs ${loadedGame.black}`;
+      } else {
+        document.getElementById('boardTitle').textContent = 'Partianalyse';
+      }
+
+      console.log('Exited puzzle mode');
+    }
+
+    // Handle piece drops on the board
+    function handlePieceDrop(source, target, piece, newPos, oldPos, orientation) {
+      // If not in puzzle mode, prevent all moves (analysis mode)
+      if (!isInPuzzleMode) {
+        return 'snapback';
+      }
+
+      // In puzzle mode, check if the move is correct
+      const playerMove = source + target;
+      const expectedMove = puzzleSolutionMoves[currentPuzzleStep * 2 + 1];
+
+      console.log('Player move:', playerMove, 'Expected:', expectedMove);
+
+      if (expectedMove && (playerMove === expectedMove || playerMove === expectedMove.substring(0, 4))) {
+        // CORRECT MOVE
+        console.log('Correct move!');
+
+        // Execute the move in the game engine
+        const move = game.move({
+          from: source,
+          to: target,
+          promotion: expectedMove.length > 4 ? expectedMove[4] : undefined
+        });
+
+        if (move) {
+          // Highlight the correct move with green
+          highlightMove(source, target, 'green', 2000);
+
+          currentPuzzleStep++;
+
+          // Check if puzzle is complete
+          if ((currentPuzzleStep * 2 + 1) >= puzzleSolutionMoves.length) {
+            completePuzzle();
+            return;
+          }
+
+          // If not complete, play opponent's response after 500ms
+          setTimeout(() => {
+            const opponentMove = puzzleSolutionMoves[currentPuzzleStep * 2];
+
+            if (opponentMove) {
+              const oppMove = game.move({
+                from: opponentMove.substring(0, 2),
+                to: opponentMove.substring(2, 4),
+                promotion: opponentMove.length > 4 ? opponentMove[4] : undefined
+              });
+
+              if (oppMove) {
+                board.position(game.fen());
+
+                // Highlight opponent's move with yellow
+                highlightMove(opponentMove.substring(0, 2), opponentMove.substring(2, 4), 'yellow', 2000);
+
+                // Update board title for next move
+                const playerColorName = game.turn() === 'w' ? 'hvit' : 'svart';
+                const instruction = translateThemeToInstruction(currentPuzzle.Themes);
+                document.getElementById('boardTitle').textContent = `Du spiller ${playerColorName}, kan du ${instruction}?`;
+              }
+            }
+          }, 500);
+        }
+
+        return; // Allow the move
+      } else {
+        // WRONG MOVE
+        console.log('Wrong move!');
+
+        // Highlight the wrong square briefly
+        highlightMove(source, source, 'red', 1000);
+
+        // Update board title
+        document.getElementById('boardTitle').textContent = "Feil, prøv igjen!";
+
+        return 'snapback'; // Snap piece back
+      }
+    }
+
+    /********************* UI: kategorier & navigasjon *********************/
+    function onTab(e){ const c=e.currentTarget.dataset.c; if(c===current) return; document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected', String(b===e.currentTarget))); loadCategory(c); }
+    function loadCategory(category){ current=category; dkOn=false; document.getElementById('dkart').hidden=true; const title=document.getElementById('boardTitle'); const names={opening:'Åpningsanalyse',tactics:'Taktisk analyse',strategy:'Strategisk analyse',endgame:'Sluttspillsanalyse',skills:'Kjerneferdighetstrening'}; if(!loadedGame){ title.textContent=names[category]||'Partianalyse'; game=new Chess(); sanList=[]; idx=0; board.position('start'); renderMoveList(); updateButtons(); } else { title.textContent=`${loadedGame.white} vs ${loadedGame.black}`; } }
+
+    function renderMoveList(){
+      const list=document.getElementById('moveList');
+      list.innerHTML='';
+
+      if(sanList.length===0){
+        list.innerHTML='<div style="padding:20px;text-align:center;color:var(--muted);">Ingen parti lastet.<br>Bruk PGN‑knappen.</div>';
+        return;
+      }
+
+
+      for(let i=0;i<sanList.length;i+=2){
+        const rn=Math.floor(i/2)+1; const row=document.createElement('div'); row.className='ply';
+        const num=document.createElement('strong'); num.textContent=rn+'.'; row.appendChild(num);
+        const w=document.createElement('button'); w.type='button'; w.className='san'; w.textContent=sanList[i]; w.dataset.i=i; w.addEventListener('click',()=>goTo(i+1));
+        if(evaluations[i+1]){
+          const ev=document.createElement('span');
+          ev.className='eval';
+          const cls=getEvalClass(evaluations[i+1]);
+          if(cls) ev.classList.add(cls);
+          ev.textContent=evaluations[i+1];
+
+          // Add source indicator
+          if(enhancedEvals[i+1]) {
+            const source = enhancedEvals[i+1].source;
+            if(source === 'Opening') {
+              ev.style.borderBottom = '2px solid var(--primary)';
+              ev.title = 'Åpningsbok-evaluering';
+              if(enhancedEvals[i+1].stats) {
+                ev.title += `\n${enhancedEvals[i+1].stats.totalGames} partier`;
+              }
+            } else if(source === 'PGN') {
+              ev.style.borderBottom = '2px solid var(--accent)';
+              ev.title = 'PGN-evaluering';
+            } else if(source === 'Stockfish') {
+              ev.style.borderBottom = '2px solid var(--ok)';
+              ev.title = 'Stockfish-evaluering';
+            }
+          }
+          w.appendChild(ev);
+        }
+        row.appendChild(w);
+        if(sanList[i+1]){
+          const b=document.createElement('button');
+          b.type='button';
+          b.className='san';
+          b.textContent=sanList[i+1];
+          b.dataset.i=i+1;
+          b.addEventListener('click',()=>goTo(i+2));
+
+          if(evaluations[i+2]){
+            const ev2=document.createElement('span');
+            ev2.className='eval';
+            const cls2=getEvalClass(evaluations[i+2]);
+            if(cls2) ev2.classList.add(cls2);
+            ev2.textContent=evaluations[i+2];
+
+            // Add source indicator for black move
+            if(enhancedEvals[i+2]) {
+              const source = enhancedEvals[i+2].source;
+              if(source === 'Opening') {
+                ev2.style.borderBottom = '2px solid var(--primary)';
+                ev2.title = 'Åpningsbok-evaluering';
+                if(enhancedEvals[i+2].stats) {
+                  ev2.title += `\n${enhancedEvals[i+2].stats.totalGames} partier`;
+                }
+              } else if(source === 'PGN') {
+                ev2.style.borderBottom = '2px solid var(--accent)';
+                ev2.title = 'PGN-evaluering';
+              } else if(source === 'Stockfish') {
+                ev2.style.borderBottom = '2px solid var(--ok)';
+                ev2.title = 'Stockfish-evaluering';
+              }
+            }
+            b.appendChild(ev2);
+          }
+          row.appendChild(b);
+        }
+        list.appendChild(row);
+      }
+      highlightActive();
+			renderEvalGraph();      // tegn/oppdater grafen når trekklisten oppdateres
+			updateEvalNowMarker();  // plasser "nå"-markør i grafen
+      if(window.matchMedia('(max-width:760px)').matches){ document.getElementById('panelToggle').style.display='inline-flex'; } else { document.getElementById('panelToggle').style.display='none'; document.getElementById('overlay').classList.remove('show'); document.getElementById('sidepanel').classList.remove('open'); }
+    }
+
+    function highlightActive(){ document.querySelectorAll('.san').forEach(b=>b.classList.remove('active')); const activeIndex=idx-1; if(activeIndex>=0){ const btn=document.querySelector(`.san[data-i="${activeIndex}"]`); if(btn) btn.classList.add('active'); } ensureActiveVisible(); }
+
+    function ensureActiveVisible(){ const list=document.getElementById('moveList'); const btn=list.querySelector('.san.active'); if(!btn) return; const lr=list.getBoundingClientRect(); const br=btn.getBoundingClientRect(); if(br.top<lr.top){ list.scrollTop -= (lr.top - br.top) + btn.offsetHeight; } else if(br.bottom>lr.bottom){ list.scrollTop += (br.bottom - lr.bottom) + btn.offsetHeight; } }
+
+		function parseEvalToNumber(evStr) {
+			if (!evStr) return 0;
+			const s = String(evStr).trim();
+
+			// Mate (#±n)
+			if (s.startsWith('#')) {
+				// '#-3' => -10, '#5'/'#+5' => +10
+				return s.includes('-') ? -10.0 : 10.0;
+			}
+			// Alternativ "M±n"
+			const m = s.match(/^M(-?\d+)$/i);
+			if (m) return parseInt(m[1], 10) < 0 ? -10.0 : 10.0;
+
+			// Numerisk
+			const n = Number(s);
+			return Number.isFinite(n) ? n : 0;
+		}
+
+		// Gir SAN med trekknummer, og "..." for svart (som i tooltip-kravet)
+		function prettyMoveLabel(plyIndex, sanList) {
+			if (plyIndex <= 0) return '0. start';
+			const moveNum = Math.ceil(plyIndex / 2);
+			const isWhite = (plyIndex % 2 === 1);
+			const san = sanList[plyIndex - 1] || '?';
+			return isWhite ? `${moveNum}. ${san}` : `${moveNum}… ${san}`;
+		}
+
+		// Tegn eval-grafen
+		function renderEvalGraph() {
+			const host = document.getElementById('evalGraph');
+			if (!host) return;
+
+			// Tomt eller ingen parti
+			if (!Array.isArray(evaluations) || evaluations.length === 0 || !Array.isArray(sanList)) {
+				host.innerHTML = '<div style="padding:8px;color:var(--muted);font-size:12px;text-align:center;">(ingen evaluering tilgjengelig)</div>';
+				return;
+			}
+
+			// Bygg tallserie i "pawns" for alle posisjoner (0=startpos)
+			const vals = evaluations.map(parseEvalToNumber);
+
+			// For sikkerhets skyld: fyll manglende med siste kjente
+			for (let i = 1; i < vals.length; i++) {
+				if (!Number.isFinite(vals[i])) vals[i] = vals[i - 1];
+			}
+
+			const N = vals.length;
+			if (N < 2) {
+				host.innerHTML = '';
+				return;
+			}
+
+			// Finn y-skala (symmetrisk)
+			const absMax = Math.max(1.0, ...vals.map(v => Math.abs(v)));
+			// Dempe ekstreme outliers så kurven holder seg lesbar
+			const yMax = Math.min(Math.max(absMax, 3.0), 8.0);
+
+			// Tegne-boks
+			const W = host.clientWidth || 480;
+			const H = 140;
+			const padL = 6, padR = 6, padT = 6, padB = 6;
+			const innerW = Math.max(1, W - padL - padR);
+			const innerH = Math.max(1, H - padT - padB);
+
+			// Skalaer
+			const xOf = i => padL + (innerW * i) / (N - 1);
+			const yOf = v => padT + (innerH * (1 - ((v + yMax) / (2 * yMax)))); // 0-linje midt i (v=0 ⇒ midt)
+
+			// Bygg path for kurve
+			let d = '';
+			for (let i = 0; i < N; i++) {
+				const x = xOf(i), y = yOf(vals[i]);
+				d += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+			}
+
+			// Areal over og under 0.0 (midtlinjen)
+			const yZero = yOf(0);
+			const areaPos = `M ${xOf(0)} ${yZero}` +
+											vals.map((v, i) => ` L ${xOf(i)} ${Math.min(yZero, yOf(v))}`).join('') +
+											` L ${xOf(N-1)} ${yZero} Z`;
+			const areaNeg = `M ${xOf(0)} ${yZero}` +
+											vals.map((v, i) => ` L ${xOf(i)} ${Math.max(yZero, yOf(v))}`).join('') +
+											` L ${xOf(N-1)} ${yZero} Z`;
+
+			// Punkter (vi bruker dem til hover/klikk; visuelt er de diskrete)
+			const circles = [];
+			for (let i = 0; i < N; i++) {
+				const x = xOf(i), y = yOf(vals[i]);
+				circles.push(`<circle class="pt" r="3" cx="${x}" cy="${y}" data-i="${i}" />`);
+			}
+
+			// SVG
+			host.innerHTML = `
+				<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="false" role="img">
+					<line class="zero" x1="${padL}" y1="${yZero}" x2="${padL + innerW}" y2="${yZero}"></line>
+					<path class="area-pos" d="${areaPos}"></path>
+					<path class="area-neg" d="${areaNeg}"></path>
+					<path class="curve" d="${d}"></path>
+					<g class="points">${circles.join('')}</g>
+					<line class="now" id="evalNowLine" x1="${xOf(idx)}" y1="${padT}" x2="${xOf(idx)}" y2="${padT + innerH}"></line>
+				</svg>
+			`;
+
+			// Tooltip
+			let tip;
+			const ensureTip = () => {
+				if (!tip) {
+					tip = document.createElement('div');
+					tip.className = 'eval-tooltip';
+					document.body.appendChild(tip);
+				}
+				return tip;
+			};
+
+			const svg = host.querySelector('svg');
+			const pts = host.querySelectorAll('.pt');
+
+			// Hover + klikk
+			pts.forEach(pt => {
+				pt.addEventListener('mousemove', (e) => {
+					const i = Number(pt.getAttribute('data-i') || '0');
+					const label = prettyMoveLabel(i, sanList);     // linje 1
+					const evStr = evaluations[i] || '0.0';         // linje 2
+					const t = ensureTip();
+					t.innerHTML = `${label}<br/>Eval: ${evStr}`;
+					t.style.left = (e.clientX + 10) + 'px';
+					t.style.top  = (e.clientY - 16) + 'px';
+					t.style.display = 'block';
+				});
+				pt.addEventListener('mouseleave', () => {
+					if (tip) tip.style.display = 'none';
+				});
+				pt.addEventListener('click', () => {
+					const i = Number(pt.getAttribute('data-i') || '0');
+					// Gå til posisjonen ETTER dette trekket (i == 0 er startpos)
+					goTo(i);
+				});
+			});
+		}
+
+		// Flytt “nå-markør” når idx endres (uten å tegne grafen på nytt)
+		function updateEvalNowMarker() {
+			const host = document.getElementById('evalGraph');
+			if (!host) return;
+			const svg = host.querySelector('svg');
+			const line = host.querySelector('#evalNowLine');
+			if (!svg || !line || !Array.isArray(evaluations) || evaluations.length === 0) return;
+
+			const W = svg.viewBox.baseVal.width;
+			const H = svg.viewBox.baseVal.height;
+			const padL = 6, padR = 6, padT = 6, padB = 6;
+			const innerW = Math.max(1, W - padL - padR);
+			const N = evaluations.length;
+
+			const xOf = i => padL + (innerW * i) / (N - 1);
+			const x = xOf(Math.max(0, Math.min(idx, N - 1)));
+
+			line.setAttribute('x1', x);
+			line.setAttribute('x2', x);
+		}
+
+    function getEvalClass(evalStr) {
+      if (!evalStr) return null;
+      const str = String(evalStr);
+
+      // Mate: se etter M±n
+      const mateMatch = str.match(/M(-?\d+)/i);
+      if (mateMatch) {
+        const n = parseInt(mateMatch[1], 10);
+        return n < 0 ? 'negative' : 'positive';
+      }
+
+      // Numerisk evaluering
+      const numMatch = str.match(/^[+\-]?(\d+(?:\.\d+)?)$/);
+      if (numMatch) {
+        const val = parseFloat(str);
+        if (val > 0.5) return 'positive';
+        if (val < -0.5) return 'negative';
+      }
+
+      return null;
+    }
+
+    function nextMove(){ if(idx>=sanList.length) return; game.move(sanList[idx]); idx++; board.position(game.fen()); highlightActive(); if(dkOn) drawDkart(); updateButtons(); scrollToKeyMoment(idx); updateDynamicOpeningInfo(); updateEvalNowMarker();}
+    function prevMove(){ if(idx<=0) return; idx--; game.reset(); for(let i=0;i<idx;i++) game.move(sanList[i]); board.position(game.fen()); highlightActive(); if(dkOn) drawDkart(); updateButtons(); scrollToKeyMoment(idx); updateDynamicOpeningInfo(); updateEvalNowMarker();}
+    function goTo(n){ idx=Math.max(0, Math.min(n, sanList.length)); game.reset(); for(let i=0;i<idx;i++) game.move(sanList[i]); board.position(game.fen()); highlightActive(); if(dkOn) drawDkart(); updateButtons(); scrollToKeyMoment(idx); updateDynamicOpeningInfo(); updateEvalNowMarker();}
+
+    function scrollToKeyMoment(moveIndex){
+      const box=document.getElementById('explainBox');
+      if(!box) return;
+
+      const headers=box.querySelectorAll('h3');
+      if(headers.length===0) return;
+
+      // Fix move number and color calculation
+      if(moveIndex === 0) return; // Startposisjon, ingen auto-scroll
+
+      // Beregn hvilket trekk som ER utført (ikke neste trekk)
+      // moveIndex=1 = 1 trekk utført (1.e4), moveIndex=2 = 2 trekk utført (1.e4 e5)
+      const moveNumber = Math.ceil(moveIndex / 2);
+      const isWhiteMove = (moveIndex % 2 === 1);
+      const color = isWhiteMove ? 'Hvit' : 'Svart';
+
+      console.log(`Auto-scroll: moveIndex=${moveIndex}, moveNumber=${moveNumber}, color=${color}`);
+
+      let target = null;
+
+      // Søk gjennom headers med bedre matching
+      for(const header of headers) {
+        const text = header.textContent || '';
+        console.log(`Checking header: "${text}"`);
+
+        // Match ny format: "### Nøkkeløyeblikk X (Trekk Y. MOVE):" hvor MOVE er faktisk trekk
+        let match = text.match(/Nøkkeløyeblikk\s+\d+\s*\(Trekk\s+(\d+)\.\s*([^):]+)\)/i);
+        if(match) {
+          const headerMoveNum = parseInt(match[1], 10);
+          const headerMove = match[2].trim();
+
+          console.log(`Found: Move ${headerMoveNum}, Notation: ${headerMove}`);
+
+          // For ny format, sjekk om trekknummer stemmer og at dette er det riktige trekket
+          if(headerMoveNum === moveNumber) {
+            const expectedMove = sanList[moveIndex-1];
+            if(expectedMove && headerMove === expectedMove) {
+              target = header;
+              console.log(`✅ Match found for Move ${moveNumber} (${expectedMove})`);
+              break;
+            }
+          }
+        }
+
+        // Fallback: Match gammelt format: "### Nøkkeløyeblikk X (Trekk Y. [Farge]):"
+        match = text.match(/Nøkkeløyeblikk\s+\d+\s*\(Trekk\s+(\d+)\.\s*\[([^\]]+)\]/i);
+        if(match) {
+          const headerMoveNum = parseInt(match[1], 10);
+          const headerColor = match[2].trim();
+
+          console.log(`Found old format: Move ${headerMoveNum}, Color ${headerColor}`);
+
+          if(headerMoveNum === moveNumber && headerColor.toLowerCase() === color.toLowerCase()) {
+            target = header;
+            console.log(`✅ Match found for Move ${moveNumber} (${color})`);
+            break;
+          }
+        }
+      }
+
+      if(target) {
+        // Forbedret scroll-posisjonering som tar hensyn til container bounds
+        const containerRect = box.getBoundingClientRect();
+        const targetRect = target.getBoundingClientRect();
+
+        // Beregn relativ posisjon innenfor containeren
+        const relativeTop = targetRect.top - containerRect.top + box.scrollTop;
+        const desiredScrollTop = relativeTop - 20; // 20px margin fra topp
+
+        // Sørg for at vi ikke prøver å scrolle utenfor bounds
+        const maxScroll = box.scrollHeight - box.clientHeight;
+        const finalScrollTop = Math.max(0, Math.min(desiredScrollTop, maxScroll));
+
+        box.scrollTo({
+          top: finalScrollTop,
+          behavior: 'smooth'
+        });
+
+        console.log(`✅ Scrolled to key moment: Move ${moveNumber} (${color}) at scroll position ${finalScrollTop}`);
+
+        // Visuell feedback (blink effect) med forbedret styling
+        target.style.transition = 'background-color 0.3s ease';
+        target.style.backgroundColor = 'rgba(79, 124, 255, 0.2)';
+        target.style.borderLeft = '4px solid var(--primary)';
+        target.style.paddingLeft = '8px';
+
+        setTimeout(() => {
+          target.style.backgroundColor = '';
+          target.style.borderLeft = '';
+          target.style.paddingLeft = '';
+        }, 2000);
+      } else {
+        console.log(`❌ No key moment found for Move ${moveNumber} (${color})`);
+      }
+    }
+
+    function resetPosition(){
+      idx=0;
+      game.reset();
+      board.position('start');
+      highlightActive();
+      if(dkOn) drawDkart();
+      updateButtons();
+      updateEvalNowMarker();
+    }
+    function goToEnd() { goTo(sanList.length); }
+    function updateButtons(){ document.getElementById('btnPrev').disabled=(idx===0); document.getElementById('btnNext').disabled=(idx===sanList.length); }
+
+    /********************* Lichess analyse‑lenke *********************/
+    function openLichessAnalysis(){ const fen=(game&&game.fen)? game.fen().replace(/ /g,'_') : 'start'; window.open(`https://lichess.org/analysis/${fen}`,'_blank'); }
+
+    /********************* DKART *********************/
+    function toggleDkart(){ dkOn=!dkOn; document.getElementById('btnDkart').setAttribute('aria-pressed',dkOn); const el=document.getElementById('dkart'); el.hidden=!dkOn; if(dkOn) drawDkart(); }
+    function drawDkart(){ const overlay=document.getElementById('dkart'); overlay.innerHTML=''; const rect=document.getElementById('board').getBoundingClientRect(); const s=rect.width/8; const grid=dominanceGrid(game.fen()); for(let r=0;r<8;r++){ for(let c=0;c<8;c++){ const v=Math.max(-3,Math.min(3,grid[r][c])); const d=document.createElement('div'); d.className=`dk-square dk-${v}`; d.style.left=(c*s)+'px'; d.style.top=(r*s)+'px'; d.style.width=s+'px'; d.style.height=s+'px'; d.textContent = v===0? '' : (v>0?`+${v}`:`${v}`); overlay.appendChild(d); } } }
+    function dominanceGrid(fen){ const pos=parseFEN(fen); const g=Array.from({length:8},()=>Array(8).fill(0)); for(let r=0;r<8;r++){ for(let c=0;c<8;c++){ let w=0,b=0; for(const p of pos.white){ if(canAttack(p,{row:r,col:c},pos)) w++; } for(const p of pos.black){ if(canAttack(p,{row:r,col:c},pos)) b++; } g[r][c]=w-b; } } return g; }
+    function parseFEN(fen){ const boardPart=fen.split(' ')[0]; const rows=boardPart.split('/'); const P={white:[],black:[]}; for(let r=0;r<8;r++){ let c=0; for(const ch of rows[r]){ if(/\d/.test(ch)) c += parseInt(ch,10); else { const piece={type:ch.toLowerCase(),row:r,col:c,color:/[A-Z]/.test(ch)?'white':'black'}; P[piece.color].push(piece); c++; } } } return P; }
+    function canAttack(piece,target,pos){ const dx=target.col-piece.col, dy=target.row-piece.row; switch(piece.type){ case 'p':{ const dir=piece.color==='white'?-1:1; return dy===dir && Math.abs(dx)===1; } case 'r':{ if(dx===0||dy===0) return clearLine(piece,target,pos); return false; } case 'n': return (Math.abs(dx)===2&&Math.abs(dy)===1)||(Math.abs(dx)===1&&Math.abs(dy)===2); case 'b':{ if(Math.abs(dx)===Math.abs(dy)) return clearLine(piece,target,pos); return false; } case 'q':{ if(dx===0||dy===0||Math.abs(dx)===Math.abs(dy)) return clearLine(piece,target,pos); return false; } case 'k': return Math.abs(dx)<=1 && Math.abs(dy)<=1; default: return false; } }
+    function clearLine(from,to,pos){ const dx=Math.sign(to.col-from.col), dy=Math.sign(to.row-from.row); let r=from.row+dy, c=from.col+dx; const all=[...pos.white,...pos.black]; while(r!==to.row || c!==to.col){ if(all.some(p=>p.row===r&&p.col===c)) return false; r+=dy; c+=dx; } return true; }
+
+    document.addEventListener('DOMContentLoaded',init);
+  </script>
+</body>
+</html>
