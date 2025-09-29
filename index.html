@@ -981,14 +981,19 @@ Returner kun den oversatte teksten uten ekstra kommentarer.`;
         // Legg til brukerens melding i historikken
         chatHistory.push({ role: 'user', content: userMessage });
 
-        // Hent svar fra AI med full kontekst
-        const response = await getAIChatResponse(chatHistory, currentFEN, whitePlayer, blackPlayer);
+        try {
+            // Hent svar fra AI med full kontekst
+            const response = await getAIChatResponse(chatHistory, currentFEN, whitePlayer, blackPlayer);
 
-        // Legg til AI-ens svar i historikken
-        chatHistory.push({ role: 'ai', content: response });
-
-        removeLoadingFromChat();
-        appendMessageToChat(response, 'ai');
+            // Legg til AI-ens svar i historikken
+            chatHistory.push({ role: 'ai', content: response });
+            appendMessageToChat(response, 'ai');
+        } catch (error) {
+            console.error('Klarte ikke å hente AI-svar:', error);
+            appendMessageToChat('Beklager, noe gikk galt.', 'ai');
+        } finally {
+            removeLoadingFromChat();
+        }
     }
 
     // Funksjon for å kalle Gemini API for et chat-svar
