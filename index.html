@@ -439,7 +439,7 @@
      * STATE
      *********************/
     const openingTextCache = new Map();
-    let current='opening', board, game, sanList=[], idx=0, playTimer=null, dkOn=false;
+    let current='opening', board, game, sanList=[], idx=0, dkOn=false;
     let evaluations=[], loadedGame=null, engine=null, analysisResolver=null, lastInfo={score:null,depth:null,pv:null};
     let enhancedEvals=[], gameOpeningInfo=null; // Lagrer utvidet evalueringsdata og åpningsinfo
     let fileGameList=[];
@@ -1613,12 +1613,48 @@ Generer kun den norske beskrivelsesteksten.`;
     }
 
     async function handleFileInput(ev){
-      const file=ev.target.files&&ev.target.files[0]; if(!file){showError('Vennligst velg en PGN‑fil.');return}
+      const file=ev.target.files&&ev.target.files[0];
+      if(!file){showError('Vennligst velg en PGN‑fil.');return}
       showLoading('Laster fil...');
-      try{const text=await file.text();const normalized=text.replace(/\r\n/g,'\n');const chunks=normalized.trim().split(/\n\n(?=\[Event)/g).filter(x=>x.trim().length>0);
-        if(chunks.length<=1){await loadGameFromPGN(chunks[0]||normalized);closePGNModal();}
-        else{fileGameList=chunks;const select=document.getElementById('gameSelect');select.innerHTML='';chunks.forEach((pgn,i)=>{let label=`Parti ${i+1}`;try{const header={};const re=/\[(\w+)\s+"([^"]*)"\]/g;let m;while((m=re.exec(pgn))) header[m[1]]=m[2];const w=header.White||'Ukjent';const b=header.Black||'Ukjent';const d=header.Date||'';label=`${i+1}: ${w} vs ${b}${d?` (${d})`:''}`}catch{} const opt=document.createElement('option');opt.value=String(i);opt.textContent=label;select.appendChild(opt)});document.getElementById('gameSelectSection').style.display='block';hideMessages();}
-      }catch(e){console.error('File load error:',e);showError('Kunne ikke laste PGN‑fil.');}
+      try{
+        const text=await file.text();
+        if(!text || typeof text !== 'string'){
+          throw new Error('Invalid file content');
+        }
+        const normalized=text.replace(/\r\n/g,'\n');
+        const chunks=normalized.trim().split(/\n\n(?=\[Event)/g).filter(x=>x.trim().length>0);
+        if(chunks.length<=1){
+          await loadGameFromPGN(chunks[0]||normalized);
+          closePGNModal();
+        }
+        else{
+          fileGameList=chunks;
+          const select=document.getElementById('gameSelect');
+          select.innerHTML='';
+          chunks.forEach((pgn,i)=>{
+            let label=`Parti ${i+1}`;
+            try{
+              const header={};
+              const re=/\[(\w+)\s+"([^"]*)"\]/g;
+              let m;
+              while((m=re.exec(pgn))) header[m[1]]=m[2];
+              const w=header.White||'Ukjent';
+              const b=header.Black||'Ukjent';
+              const d=header.Date||'';
+              label=`${i+1}: ${w} vs ${b}${d?` (${d})`:''}`;
+            }catch(e){console.error('Header parsing error:',e);}
+            const opt=document.createElement('option');
+            opt.value=String(i);
+            opt.textContent=label;
+            select.appendChild(opt);
+          });
+          document.getElementById('gameSelectSection').style.display='block';
+          hideMessages();
+        }
+      }catch(e){
+        console.error('File load error:',e);
+        showError('Kunne ikke laste PGN‑fil.');
+      }
     }
 
     async function selectGameFromFile(){
@@ -1628,9 +1664,12 @@ Generer kun den norske beskrivelsesteksten.`;
     }
 
     async function loadGameFromPGN(pgnText){
+      if(!pgnText || typeof pgnText !== 'string'){
+        throw new Error('Invalid PGN text');
+      }
       const normalized=pgnText.replace(/\r\n/g,'\n');
       const chunks=normalized.trim().split(/\n\n(?=\[Event)/g);
-      const pgn=(chunks||normalized).trim();
+      const pgn=(chunks[0]||normalized).trim();
       const chess=new Chess();
       if(!chess.load_pgn(pgn,{sloppy:true})) throw new Error('Ugyldig PGN');
       const header=chess.header();
