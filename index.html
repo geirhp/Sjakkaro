@@ -45,7 +45,8 @@
     .ply .san.active{background:var(--primary);color:#fff}
     .ply .eval{font-size:11px;color:var(--muted);margin-left:4px}
     .ply .eval.positive{color:var(--ok)} .ply .eval.negative{color:var(--danger)}
-    .action-buttons{display:flex;gap:8px;margin-top:10px}.action-buttons .btn{flex:1}
+    .action-buttons{display:flex;gap:8px;margin-top:10px}
+    .action-buttons .btn{flex-basis:24%}
     .btn{appearance:none;border:1px solid #20315e;background:#0e1730;color:#d9e1ff;padding:8px 10px;border-radius:10px;font-weight:700;cursor:pointer}
     .btn:hover{border-color:#2a3f7b;color:#fff}
     .btn[aria-pressed="true"]{background:var(--primary);border-color:var(--primary-600);color:#fff}
@@ -290,6 +291,7 @@
 
           <div class="action-buttons" aria-label="Verktøy">
             <button class="btn" id="btnDkart" aria-pressed="false">Dkart</button>
+            <button class="btn" id="btnPositionAnalysis" disabled>Analyse</button>
             <button class="btn" id="btnAnalyze">Lichess</button>
             <button class="btn btn--primary" id="btnPGN">PGN</button>
           </div>
@@ -354,6 +356,11 @@
         <div class="form-group">
           <label class="form-label" for="aiModelSelector">Velg AI-modell</label>
           <select id="aiModelSelector" class="form-select"></select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="elevRatingInput">Ditt estimerte ratingnivå</label>
+          <input id="elevRatingInput" type="number" class="form-input" min="400" max="2400" step="50" placeholder="f.eks. 800">
         </div>
 
         <div class="form-group">
@@ -443,6 +450,20 @@
     let evaluations=[], loadedGame=null, engine=null, analysisResolver=null, lastInfo={score:null,depth:null,pv:null};
     let enhancedEvals=[], gameOpeningInfo=null; // Lagrer utvidet evalueringsdata og åpningsinfo
     let fileGameList=[];
+
+    // ==== Elevens ratingnivå (persistens i localStorage) ====
+    let elevRating = parseInt(localStorage.getItem('elevRating'), 10) || 800;
+
+    function setElevRating(rating) {
+      const val = parseInt(rating, 10);
+      if (!isNaN(val) && val >= 400 && val <= 2400) {
+        elevRating = val;
+        localStorage.setItem('elevRating', String(val));
+        console.log('ElevRating satt til:', elevRating);
+      } else {
+        console.warn('Ugyldig elevRating:', rating);
+      }
+    }
 
     // Puzzle system variables
     let allPuzzles = [];
@@ -776,6 +797,12 @@
           return null;
         }
 
+        // Sjekk om extract faktisk finnes og har innhold
+        if (!page.extract || page.extract.trim().length === 0) {
+          console.log(`Wikibooks page found but no extract content: ${wikiUrl}`);
+          return null;
+        }
+
         return {
           title: page.title,
           extract: page.extract,
@@ -898,11 +925,15 @@ Returner kun den oversatte teksten uten ekstra kommentarer.`;
         // Oversett til norsk
         const translatedContent = await translateOpeningInfo(wikiContent.extract);
 
+        // Håndter tilfeller hvor oversettelsen feiler
+        const safeTranslatedContent = translatedContent || '';
+        console.log('Translation result:', { original: wikiContent.extract?.substring(0, 100), translated: safeTranslatedContent?.substring(0, 100) });
+
         const result = {
           ...wikiContent,
-          translatedExtract: translatedContent,
-          character: extractOpeningCharacter(translatedContent),
-          plans: extractPlans(translatedContent)
+          translatedExtract: safeTranslatedContent,
+          character: extractOpeningCharacter(safeTranslatedContent),
+          plans: extractPlans(safeTranslatedContent)
         };
 
         // Cache resultatet
@@ -927,6 +958,9 @@ Returner kun den oversatte teksten uten ekstra kommentarer.`;
 
     function extractOpeningCharacter(text) {
       // Enkel parsing for å finne åpningskarakteristikk
+      if (!text || typeof text !== 'string') {
+        return '';
+      }
       const sentences = text.split('. ').slice(0, 2);
       return sentences.join('. ') + (sentences.length > 0 ? '.' : '');
     }
@@ -935,6 +969,10 @@ Returner kun den oversatte teksten uten ekstra kommentarer.`;
       // Enkel parsing for å finne planer (kan forbedres)
       const whitePlans = [];
       const blackPlans = [];
+
+      if (!text || typeof text !== 'string') {
+        return { white: whitePlans, black: blackPlans };
+      }
 
       // Look for common plan indicators
       const whiteKeywords = ['hvit', 'white', 'first player'];
@@ -1166,86 +1204,141 @@ Svar på elevens siste melding. Vær kortfattet, pedagogisk og motiverende. Bruk
 
     /********************* Opening Info Panel Update *********************/
     async function updateDynamicOpeningInfo() {
-        if (!OPENING_BOOK.enabled || isInPuzzleMode || sanList.length === 0) {
-            document.getElementById('openingInfoPanel').style.display = 'none';
-            return;
-        }
+      if (!OPENING_BOOK.enabled || isInPuzzleMode || sanList.length === 0) {
+        document.getElementById('openingInfoPanel').style.display = 'none';
+        return;
+      }
 
-        const panel = document.getElementById('openingInfoPanel');
-        panel.style.display = 'block';
+      const panel = document.getElementById('openingInfoPanel');
+      const aiTextEl = document.getElementById('aiOpeningText');
+      const analysisBtn = document.getElementById('btnPositionAnalysis');
+      if (analysisBtn) analysisBtn.disabled = true; // default: av
 
-        const fen = game.fen();
-        const bookData = await queryLichessOpeningBook(fen);
+      const fen = game.fen();
+      const bookData = await queryLichessOpeningBook(fen);
 
-				if (!bookData || !bookData.moves || bookData.moves.length === 0) {
-					panel.style.display = 'none';
-					return;
-				}
-				panel.style.display = 'block';
+      if (!bookData || !bookData.moves || bookData.moves.length === 0) {
+        panel.style.display = 'none';
+        return;
+      }
 
-				// Tittel: bruk ECO/navn hvis tilgjengelig, ellers nøytral tittel
-				const nameEl = document.getElementById('openingName');
-				if (nameEl) {
-					if (bookData.opening) {
-						const eco = bookData.opening.eco ? `${bookData.opening.eco}: ` : '';
-						nameEl.textContent = `${eco}${bookData.opening.name}`;
-					} else {
-						nameEl.textContent = 'Åpningsstatistikk';
-					}
-				}
-        // 2. Oppdater statistikk-seksjonen
-        updateOpeningStatsUI(bookData);
-
-        // 3. Hent og vis AI-beskrivelse
-        const aiTextEl = document.getElementById('aiOpeningText');
-        const currentFen = game.fen();
-
-        if (openingTextCache.has(currentFen)) {
-            // Hent fra cache
-            aiTextEl.textContent = openingTextCache.get(currentFen);
+      panel.style.display = 'block';
+      const nameEl = document.getElementById('openingName');
+      if (nameEl) {
+        if (bookData.opening) {
+          const eco = bookData.opening.eco ? `${bookData.opening.eco}: ` : '';
+          nameEl.textContent = `${eco}${bookData.opening.name}`;
         } else {
-            // Hent fra AI og lagre i cache
-            aiTextEl.innerHTML = `<span class="spinner"></span> Laster AI-forklaring...`;
-
-            const moveSequence = game.history().slice(0, idx);
-            const theoryData = await getOpeningTheory(moveSequence);
-
-            const aiDescription = await getAIOpeningMoveExplanation(bookData, theoryData);
-            aiTextEl.textContent = aiDescription;
-
-            // Lagre resultatet i cachen
-            openingTextCache.set(currentFen, aiDescription);
+          nameEl.textContent = 'Åpningsstatistikk';
         }
+      }
+
+      // Oppdater stats
+      updateOpeningStatsUI(bookData);
+
+      // Sjekk Wikibooks-teori for trekksekvensen
+      const moveSequence = game.history().slice(0, idx);
+      const theoryData = await getOpeningTheory(moveSequence);
+
+      // KUN GENERER AI-TEKST HVIS WIKIBOOKS HAR DATA
+      if (theoryData && theoryData.translatedExtract && theoryData.translatedExtract.trim().length > 0) {
+        aiTextEl.innerHTML = `<span class="spinner"></span> Laster AI-forklaring...`;
+        const text = await getAIOpeningMoveExplanation(bookData, theoryData);
+        aiTextEl.textContent = text || '';
+        if (analysisBtn) analysisBtn.disabled = true;  // finnes åpningstekst → analyseknapp av
+      } else {
+        aiTextEl.textContent = '';                      // ingen åpningstekst
+        if (analysisBtn) analysisBtn.disabled = false;  // aktiver manuell analyse
+      }
     }
 
     function updateOpeningStatsUI(bookData) {
       const container = document.getElementById('openingStatsContainer');
-      container.innerHTML = '';
+      container.innerHTML = ''; // Tøm gammelt innhold
 
-      if (!bookData?.moves?.length) {
+      // Tomt datasett -> vis beskjed og returner
+      if (!bookData || !bookData.moves || bookData.moves.length === 0) {
         container.innerHTML = '<p style="font-size:12px; color:var(--muted);">Ingen statistikk for denne stillingen.</p>';
         return;
       }
 
-      // DB-velger øverst
+      // --- START ENDRING (struktur og robusthet) ---
+
+      // Beregn totals for headeren fra white/draws/black (mer robust enn å summere moves)
+      const headerTotals = {
+        white: Number(bookData.white || 0),
+        draws: Number(bookData.draws || 0),
+        black: Number(bookData.black || 0)
+      };
+      const headerTotalGames = headerTotals.white + headerTotals.draws + headerTotals.black;
+
+      // Fallback: hvis headerTotalGames mangler men moves finnes, bruk sum(moves.total)
+      const sumMoves = bookData.moves.reduce((s, m) => s + Number(m.total || 0), 0);
+      const totalGamesForBars = headerTotalGames > 0 ? headerTotalGames : sumMoves;
+
+      // Finn label for headerlinjen: siste SAN eller "Start"
+      let lastMoveSan = 'Start';
+      try {
+        // Forventer at `game` (Chess.js) og `idx` finnes globalt i din app
+        if (typeof game !== 'undefined' && game && typeof game.history === 'function') {
+          const hist = game.history();
+          const i = (typeof idx === 'number' ? idx : hist.length) - 1;
+          lastMoveSan = hist[i] || 'Start';
+        }
+      } catch (e) {
+        // Ignorer og bruk 'Start'
+        lastMoveSan = 'Start';
+      }
+
+      // 1) Headerlinjen ("Start" / siste trekk)
+      // createStatsLine(label, gamesForLine, distObj, totalGames, isHeader?)
+      container.appendChild(
+        createStatsLine(lastMoveSan, totalGamesForBars, headerTotals, totalGamesForBars, true)
+      );
+
+      // 2) Database-velger (radio-knapper) under headerlinjen, lett innrykket
       const dbSelector = document.createElement('div');
-      dbSelector.style.cssText = "margin-bottom: 10px; display: flex; gap: 16px; align-items: center; font-size: 12px;";
+      dbSelector.style.cssText = [
+        "margin: 2px 0 10px 0",
+        "padding-left: 20px",     // innrykk for å ligge under labelen i headerlinjen
+        "display: flex",
+        "gap: 16px",
+        "align-items: center",
+        "font-size: 12px"
+      ].join(';');
+
+      const currentDb = (typeof selectedOpeningDb !== 'undefined' && selectedOpeningDb) ? selectedOpeningDb : 'lichess';
+
       dbSelector.innerHTML = `
-        <label style="cursor:pointer;"><input type="radio" name="openingDb" value="lichess" onchange="handleDbChange()" ${selectedOpeningDb === 'lichess' ? 'checked' : ''}> Lichess</label>
-        <label style="cursor:pointer;"><input type="radio" name="openingDb" value="masters" onchange="handleDbChange()" ${selectedOpeningDb === 'masters' ? 'checked' : ''}> Masters</label>
+        <label style="cursor:pointer;">
+          <input type="radio" name="openingDb" value="lichess"
+                 ${currentDb === 'lichess' ? 'checked' : ''} onchange="handleDbChange()">
+          Lichess
+        </label>
+        <label style="cursor:pointer;">
+          <input type="radio" name="openingDb" value="masters"
+                 ${currentDb === 'masters' ? 'checked' : ''} onchange="handleDbChange()">
+          Masters
+        </label>
       `;
       container.appendChild(dbSelector);
 
-      const totalGames = bookData.moves.reduce((s, m) => s + m.total, 0);
-      const currentMoveData = { white: bookData.white, draws: bookData.draws, black: bookData.black };
-
-      const lastMoveSan = game.history()[idx - 1] || 'Start';
-      container.appendChild(createStatsLine(lastMoveSan, totalGames, currentMoveData, totalGames, true));
-
-      // Topp 3 neste trekk
+      // 3) Topp 3 neste trekk
+      const totalGames = totalGamesForBars || sumMoves || 1; // beskyttelse mot 0
       bookData.moves.slice(0, 3).forEach(move => {
-        container.appendChild(createStatsLine(move.san, move.total, move, totalGames));
+        // move: { san, total, white, draws, black, ... }
+        const dist = {
+          white: Number(move.white || 0),
+          draws: Number(move.draws || 0),
+          black: Number(move.black || 0)
+        };
+        const gamesForLine = Number(move.total || (dist.white + dist.draws + dist.black));
+        container.appendChild(
+          createStatsLine(move.san, gamesForLine, dist, totalGames)
+        );
       });
+
+      // --- SLUTT ENDRING ---
     }
 
     function createStatsLine(label, games, data, totalGames, isHeader = false) {
@@ -1272,49 +1365,59 @@ Svar på elevens siste melding. Vær kortfattet, pedagogisk og motiverende. Bruk
     }
 
     async function getAIOpeningMoveExplanation(bookData, theoryData) {
-        try {
-            const lastMove = game.history({ verbose: true })[idx - 1]?.san || "Startposisjon";
-            const openingName = bookData.opening?.name || "Ukjent åpning";
-            let statsText = '';
-            if (bookData.moves && bookData.moves.length > 0) {
-                const topMove = bookData.moves[0];
-                const totalGames = bookData.moves.reduce((sum, m) => sum + m.total, 0);
-                const movePopularity = totalGames > 0 ? (topMove.total / totalGames * 100).toFixed(0) : 'N/A';
-                statsText = `Mest populære svar er ${topMove.san} (spilt i ${movePopularity}% av partiene).`;
-            }
-            const wikibooksText = theoryData?.translatedExtract || "Ingen spesifikk teori funnet.";
-            const dbSourceName = selectedOpeningDb === 'lichess' ? 'Lichess-databasen (alle spillere)' : 'Mester-databasen (tittelspillere)';
+      try {
+        const lastMove = game.history({ verbose: true })[idx - 1]?.san || "Startposisjon";
+        const openingName = bookData.opening?.name || "Ukjent åpning";
 
-            const prompt = `
-Rolle: Du er AI-sjakktreneren Sjakkaro for nybegynnere (ca. 900 Elo i spillestyrke).
-Oppgave: Forklar det siste trekket i en sjakkåpning, eller gi en introduksjon til partiet hvis det er startposisjonen. Bruk dataen du får til å skrive en kort, lærerik beskrivelse (maks 5-7 setninger).
-Regler:
-1.  Bruk kun norske sjakkbegreper.
-2.  Vær presis, enkel og motiverende.
-3.  Fokuser på det som er relevant for en nybegynner.
-4.  Vær objektiv og tidløs. Unngå "Lykke til" etc.
-5.  PRIORITERING: Baser forklaringen din primært på trekkets grunnleggende formål og statistikken fra den valgte databasen. Bruk Wikibooks-teksten som sekundær kontekst.
-6.  HVIS DATA MANGLER: Fokuser på generelle strategiske ideer.
-Struktur:
--   Trekkets formål (hva oppnår det?).
--   Planer og ideer (hva er den vanligste planen?).
--   Vanlige fortsettelser (hva er den mest populære responsen?).
-Data:
--   Datakilde i bruk: ${dbSourceName}
--   Siste trekk: ${lastMove}
--   Åpningens navn: ${openingName}
--   Statistikk: ${statsText}
--   Teoretisk kontekst: ${wikibooksText}
-SPESIALINSTRUKSJON:
--   Hvis "Datakilde" er "Mester-databasen", legg vekt på hva mesterne foretrekker sammenlignet med generelle trekk.
--   Hvis "Siste trekk" er "Startposisjon", gi en generell introduksjon til åpningen.
-Generer kun den norske beskrivelsesteksten.`;
-
-            return await getAICompletion(prompt);
-        } catch (e) {
-            console.error('AI opening explanation error:', e);
-            return "Kunne ikke laste forklaring for dette trekket.";
+        let statsText = '';
+        if (bookData.moves && bookData.moves.length > 0) {
+          const totalGames = bookData.moves.reduce((sum, m) => sum + (m.total || 0), 0);
+          const top = bookData.moves[0];
+          const pop = totalGames > 0 ? Math.round((top.total || 0) * 100 / totalGames) : 0;
+          statsText = `Mest populære svar er ${top.san} (${pop}% av partiene).`;
         }
+
+        const wikibooksText = theoryData?.translatedExtract || "";
+        const dbSourceName = selectedOpeningDb === 'lichess'
+          ? 'Lichess-databasen (alle spillere)'
+          : 'Mester-databasen (tittelspillere)';
+
+        // Viktig: bruk norsk terminologi (kobling til ordboken skjer ellers i oversettelsen)
+        const prompt = `
+Rolle: Du er AI-sjakktreneren Sjakkaro for en elev i ungdomsskolen. Eleven har ${elevRating} ELO i spillestyrke.
+Oppgave: Forklar det SISTE TREKKET i denne sjakkåpningen. Svar kort (maks 5–7 setninger), lærerikt og tilpasset elevens nivå.
+
+Viktige regler:
+- Bruk KUN norske sjakkbegreper (se norsk ordliste).
+- Vær presis, direkte og motiverende.
+- Fokuser på det som er relevant for en på dette ratingnivået.
+- Vær objektiv og tidløs (unngå "lykke til" o.l.).
+- PRIORITERING: Basér forklaringen PRIMÆRT på teksten fra Wikibooks under.
+- Ikke vektlegg valg av database utover språkføring i statistikk-setninger.
+
+Struktur:
+1) Trekkets formål (hva oppnås?).
+2) Planer og ideer (vanlig plan).
+3) Vanlige fortsettelser (mest populær respons).
+
+Data:
+- Elevens ratingnivå: ${elevRating}
+- Datakilde i bruk: ${dbSourceName}
+- Siste trekk: ${lastMove}
+- Åpningens navn: ${openingName}
+- Statistikk: ${statsText}
+- Teoretisk kontekst fra Wikibooks: ${wikibooksText}
+
+Spesialinstruks:
+- Hvis Datakilde er "Mester-databasen", bruk formuleringer som «blant sjakk-mestere …».
+- Ellers bruk «blant Lichess-spillere …» når du viser til statistikk.
+- Returnér KUN den norske beskrivelsesteksten.`;
+
+        return await getAICompletion(prompt);
+      } catch (e) {
+        console.error('AI opening explanation error:', e);
+        return "Kunne ikke laste forklaring for dette trekket.";
+      }
     }
 
     // Konverter SAN moves til UCI format for Opening Book API
@@ -1454,6 +1557,7 @@ Generer kun den norske beskrivelsesteksten.`;
       document.getElementById('btnStart').addEventListener('click',resetPosition);
       document.getElementById('btnEnd').addEventListener('click',goToEnd);
       document.getElementById('btnDkart').addEventListener('click',toggleDkart);
+      document.getElementById('btnPositionAnalysis').addEventListener('click', handlePositionAnalysis);
       document.getElementById('btnAnalyze').addEventListener('click',openLichessAnalysis);
       document.getElementById('btnPGN').addEventListener('click',openPGNModal);
       document.getElementById('closeModal').addEventListener('click',closePGNModal);
@@ -1545,13 +1649,20 @@ Generer kun den norske beskrivelsesteksten.`;
     function openConfigModal(){
       populateAIModelSelector();
       loadAIKeyInputs();
+      // Forhåndsfyll elevRating
+      const er = document.getElementById('elevRatingInput');
+      if (er) er.value = elevRating;
       document.getElementById('configModal').classList.add('show');
     }
     function closeConfigModal(){document.getElementById('configModal').classList.remove('show');}
 
     function saveConfig(){
       updateOpeningBookConfig();
+      // Lagre AI-nøkler og modell
       saveAISettingsFromModal();
+      // Lagre elevRating
+      const er = document.getElementById('elevRatingInput');
+      if (er) setElevRating(er.value);
       closeConfigModal();
       console.log('Configuration saved');
     }
@@ -1924,6 +2035,104 @@ Generer kun den norske beskrivelsesteksten.`;
           }
         }
       });
+    }
+
+    // === MVP: Manuell posisjonsanalyse basert på én bestmove (simulert MultiPV) ===
+    async function handlePositionAnalysis() {
+      const btn = document.getElementById('btnPositionAnalysis');
+      const aiTextEl = document.getElementById('aiOpeningText');
+      const statsContainer = document.getElementById('openingStatsContainer');
+      const openingNameEl = document.getElementById('openingName');
+
+      if (!game) return;
+
+      btn.disabled = true;
+      openingNameEl.textContent = 'Posisjonsanalyse';
+      aiTextEl.innerHTML = `<span class="spinner"></span> Analyserer med Stockfish...`;
+      statsContainer.innerHTML = '';
+
+      try {
+        const uciMoves = game.history({ verbose: true }).slice(0, idx).map(m => m.from + m.to + (m.promotion || ''));
+        // Kjør motoren én gang – MVP
+        const analysisResult = await analyzePositionWithMoves(uciMoves, { mode: 'movetime', ms: 1500, depth: 21, mpv: 1 });
+
+        // Simulér MultiPV-tekst (kan byttes ut senere når MultiPV-parsing er på plass)
+        const stockfishEval = `1. ${analysisResult?.pv || 'N/A'} (Eval: ${analysisResult?.score ?? 'N/A'})`;
+
+        updateStockfishStatsUI(analysisResult);
+
+        aiTextEl.innerHTML = `<span class="spinner"></span> Genererer AI-analyse...`;
+
+        // Prompt: nivåtilpasset, norsk terminologi, bruk Wikibooks kun hvis vi faktisk har noe (her kjører vi uavhengig av Wikibooks)
+        const prompt = `
+Rolle: Du er en pedagogisk sjakktrener for en elev i ungdomsskolen. Bruk konsekvent norske sjakkbegreper (se norsk ordliste). Svar som ren tekst (ikke markdown).
+Analyser stillingen med følgende parametere:
+Stillingen (FEN): ${game.fen()}
+Elevens ratingnivå: ${elevRating}
+Stockfish top 3 (MVP-simulert): ${stockfishEval}
+Tegngrense: 1000
+
+Mål og fokus:
+Gi eleven et trygt beslutningsgrunnlag som minimerer blundere og styrker grunnleggende forståelse.
+
+Velg analysetype basert på rating:
+- Under 800: GRUNNLEGGENDE
+- 800–1200: UTVIKLENDE
+- Over 1200: AVANSERT
+
+Instruks for struktur og nivå:
+NIVÅ 1: GRUNNLEGGENDE (Under 800)
+- HOVEDPOENG (~200 tegn): "Det viktigste her er [en konkret observasjon]"
+- HVORFOR (~300): Enkelt språk, visuell forklaring (feltbeskrivelse).
+- HVA NÅ (~300): Ett konkret trekk og hvorfor.
+- LÆRINGSMÅL (~200): "Husk: [enkel regel]".
+- Prioritet: Materiell > Sikkerhet > Aktivitet.
+
+NIVÅ 2: UTVIKLENDE (800–1200)
+- STILLINGSVURDERING (~250): kort status (materiell, struktur, initiativ).
+- KRITISK MOMENT (~350): hovedutfordring/mulighet (bruk motorinnsikt).
+- PLAN (~300): 2–3 trekk med idé.
+- VURDER SELV (~100): ett refleksjonsspørsmål.
+
+NIVÅ 3: AVANSERT (1200+)
+- ESSENS (~200): karakteristikk (f.eks. isolert d-bonde).
+- KRITISK VARIASJON (~400): hovedlinje + alternativer (kortfattet).
+- STRATEGISK DYBDE (~300): langsiktig plan/bytter/strukturer.
+- TRENINGSMOMENT (~100): lignende struktur å studere.
+
+ALLTID:
+- Start med det eleven mest sannsynlig overser på sitt nivå.
+- Bruk motoren som fasit, men forklar menneskelig logikk.
+- Bruk norsk terminologi fra ordboken.
+
+Gi kun norsk beskrivelsestekst.`;
+
+        const aiAnalysis = await getAICompletion(prompt);
+        aiTextEl.textContent = aiAnalysis || 'Ingen analyse tilgjengelig.';
+      } catch (e) {
+        console.error('Posisjonsanalyse feilet:', e);
+        aiTextEl.textContent = 'En feil oppstod under analysen.';
+      } finally {
+        // Forblir deaktivert til nytt trekk – styres i updateDynamicOpeningInfo() og ved navigasjon
+      }
+    }
+
+    function updateStockfishStatsUI(stockfishResult) {
+      const container = document.getElementById('openingStatsContainer');
+      container.innerHTML = '';
+
+      if (!stockfishResult || !stockfishResult.pv) {
+        container.innerHTML = '<p style="font-size:12px; color:var(--muted);">Ingen Stockfish-data.</p>';
+        return;
+      }
+
+      const line = document.createElement('div');
+      line.className = 'move-stats-line';
+      line.innerHTML = `
+        <div><span class="move-san">Beste linje</span></div>
+        <div>${stockfishResult.pv} &nbsp; <span style="color:var(--muted)">(${stockfishResult.score ?? '—'})</span></div>
+      `;
+      container.appendChild(line);
     }
 
     async function evaluateGamePositions(){
