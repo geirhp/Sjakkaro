@@ -1,0 +1,48 @@
+Attributter i Lichess Puslespilldatabase
+Basert på konteksten fra vår forrige samtale, antar jeg at du mener Lichess puslespilldatabase (puzzle database), siden "Word Puzzles" kan være en skrivefeil eller misforståelse knyttet til Lichess' database. Denne databasen er en omfattende samling av sjakkpuslespill, og den er designet for å være svært anvendelig for brukere, utviklere og forskere. Jeg vil forklare de viktigste attributtene (feltene) i databasen og hvorfor de gjør den nyttig. Informasjonen er hentet fra Lichess' offisielle database-dokumentasjon og relaterte analyser.
+
+Databasen er tilgjengelig som en komprimert CSV-fil (lichess_db_puzzle.csv.zst) og oppdateres jevnlig – sist oppdatert 2. august 2025, med over 5 millioner puslespill. Den er i offentlig domene, noe som betyr at den kan lastes ned og brukes fritt uten restriksjoner. Her er de sentrale attributtene og hvorfor de bidrar til dens anvendelighet:
+
+1. PuzzleId
+Dette er en unik identifikator for hvert puslespill.
+
+Hvorfor anvendelig? Gjør det enkelt å referere til, sortere og integrere puslespill i apper eller analyser uten duplikater. For eksempel kan du bygge en app som henter spesifikke puslespill basert på ID.
+
+2. FEN (Forsyth-Edwards Notation)
+Beskriver sjakkposisjonen før motstanderens trekk, inkludert brikker, farge, rokaderettigheter og en passant-muligheter.
+
+Hvorfor anvendelig? Tillater direkte import til sjakkprogrammer som ChessBase eller Stockfish for visualisering og analyse. Posisjonen etter første trekk er den som presenteres til spilleren, noe som gjør det ideelt for trening.
+
+3. Moves
+En liste over trekk i UCI-format (f.eks. "e7e5" for fra e7 til e5).
+
+Hvorfor anvendelig? Trekkløsningen er presis og maskinlesbar. Alle spillerens trekk i løsningen er "eneste gode trekk" (unntatt matt i ett), noe som sikrer høy kvalitet. Kan konverteres til SAN-format for visning.
+
+4. Rating og RatingDeviation
+Rating er puslespillets vanskelighetsgrad (f.eks. fra 545 til over 3000), basert på Glicko-2-systemet der hver løsningsforsøk behandles som en rangert kamp.
+
+RatingDeviation viser usikkerhet i ratingen.
+
+Hvorfor anvendelig? Lar brukere filtrere etter vanskelighetsnivå (f.eks. nybegynner <1200, ekspert >2200). Dette gjør databasen egnet for personlig tilpasset trening eller AI-modeller.
+
+5. Popularity
+En score fra -100 (verst) til 100 (best), beregnet basert på stemmer fra spillere, vektet etter suksess og rating.
+
+Hvorfor anvendelig? Hjelper med å velge populære puslespill for bedre brukeropplevelse. For eksempel kan du filtrere ut upopulære (-100 til -60) og prioritere høyt rangerte (60–100).
+
+6. NbPlays
+Antall ganger puslespillet er forsøkt (fra 0 til over 300 000).
+
+Hvorfor anvendelig? Indikerer popularitet og relevans; puslespill med mange spill gir statistisk innsikt i vanskelighet og effektivitet for læring.
+
+7. Themes
+Tagger som beskriver temaer (f.eks. "fork", "pin", "endgame"), automatisk generert og raffinert med spillerstemmer.
+
+Hvorfor anvendelig? Muliggjør temabasert søk og filtrering, perfekt for målrettet trening (f.eks. kun sluttspill). Det finnes en egen liste over temaer for enkel referanse.
+
+8. GameUrl og OpeningTags
+GameUrl lenker til det opprinnelige partiet på Lichess.
+
+OpeningTags (kun for puslespill før trekk 20) inkluderer åpninger som "Sicilian Defense".
+
+Hvorfor anvendelig? Kobler puslespillet til ekte spill, noe som gir kontekst og mulighet for dypere analyse. Ideelt for å studere åpninger eller integrere med Lichess' spilldatabase.
